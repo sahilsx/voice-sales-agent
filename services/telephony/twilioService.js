@@ -1,0 +1,52 @@
+import twilio from 'twilio';
+import { env } from '../../config/env.js';
+
+const twilioClient = (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN)
+    ? twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN)
+    : null;
+
+function escapeXml(str = '') {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+export function buildGatherTwiml({ respondUrl, sayText, audioUrl, goodbyeText }) {
+    const sayOrPlay = audioUrl
+        ? `<Play>${escapeXml(audioUrl)}</Play>`
+        : `<Say voice="Polly.Joanna">${escapeXml(sayText)}</Say>`;
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Gather input="speech" action="${escapeXml(respondUrl)}" method="POST" speechTimeout="0.8" speechModel="phone_call" hints="Sahil, demo, menu, mobile, website, reservations, Instagram, schedule, yes, no, thanks, bye, 10 AM, 2 PM" language="en-US">
+        ${sayOrPlay}
+    </Gather>
+    <Say voice="Polly.Joanna">${escapeXml(goodbyeText)}</Say>
+</Response>`;
+}
+
+export function buildErrorTwiml(message) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">${escapeXml(message)}</Say>
+</Response>`;
+}
+
+export async function placeOutboundCall({ from, to, url, statusCallback }) {
+    if (!twilioClient) {
+        throw new Error('Twilio client is not initialized. Please verify TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in .env');
+    }
+
+    const call = await twilioClient.calls.create({
+        from: from || env.TWILIO_PHONE_NUMBER,
+        to,
+        url,
+        statusCallback,
+        statusCallbackEvent: ['completed', 'failed', 'no-answer', 'busy', 'canceled']
+    });
+
+    return call;
+}

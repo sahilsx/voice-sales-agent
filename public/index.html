@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceAI - Enterprise Sales Agent Platform</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="logo">
+            <i class="fa-solid fa-headset"></i> VoiceAI Enterprise
+        </div>
+        <nav id="main-nav-links" class="nav-links">
+            <!-- Nav buttons rendered dynamically based on user role -->
+        </nav>
+        <div id="user-auth-bar" style="display:flex; align-items:center; gap:0.75rem;">
+            <!-- User auth info rendered dynamically -->
+        </div>
+    </header>
+
+    <!-- Main App Container -->
+    <div class="container">
+
+        <!-- SUPER ADMIN TAB 1: PLATFORM OVERVIEW -->
+        <div id="tab-platform-overview" class="tab-view">
+            <div class="card-header" style="margin-bottom:1.5rem;">
+                <h2><i class="fa-solid fa-chart-line"></i> Platform Overview & Global Health</h2>
+                <button class="btn btn-primary" onclick="loadPlatformStats()"><i class="fa-solid fa-rotate"></i> Refresh
+                    Metrics</button>
+            </div>
+            <div
+                style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1.25rem; margin-bottom:2rem;">
+                <div class="glass-card" style="margin:0; padding:1.25rem;">
+                    <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">
+                        Organizations</div>
+                    <div id="sa-total-orgs"
+                        style="font-size:1.85rem; font-weight:700; color:var(--primary); margin-top:0.25rem;">0</div>
+                    <div style="font-size:0.75rem; color:var(--text-sub); margin-top:0.35rem;" id="sa-orgs-breakdown">
+                        Active: 0 | Suspended: 0</div>
+                </div>
+                <div class="glass-card" style="margin:0; padding:1.25rem;">
+                    <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">
+                        Platform Users</div>
+                    <div id="sa-total-users"
+                        style="font-size:1.85rem; font-weight:700; color:var(--accent); margin-top:0.25rem;">0</div>
+                </div>
+                <div class="glass-card" style="margin:0; padding:1.25rem;">
+                    <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">AI
+                        Agents</div>
+                    <div id="sa-total-agents"
+                        style="font-size:1.85rem; font-weight:700; color:#a855f7; margin-top:0.25rem;">0</div>
+                </div>
+                <div class="glass-card" style="margin:0; padding:1.25rem;">
+                    <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">
+                        Total Leads</div>
+                    <div id="sa-total-leads"
+                        style="font-size:1.85rem; font-weight:700; color:#38bdf8; margin-top:0.25rem;">0</div>
+                </div>
+                <div class="glass-card" style="margin:0; padding:1.25rem;">
+                    <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">
+                        Calls Today</div>
+                    <div id="sa-calls-today"
+                        style="font-size:1.85rem; font-weight:700; color:#eab308; margin-top:0.25rem;">0</div>
+                    <div style="font-size:0.75rem; color:var(--text-sub); margin-top:0.35rem;" id="sa-calls-month">This
+                        Month: 0</div>
+                </div>
+                <div class="glass-card" style="margin:0; padding:1.25rem;">
+                    <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">
+                        Total Platform Cost</div>
+                    <div id="sa-total-cost"
+                        style="font-size:1.85rem; font-weight:700; color:#ef4444; margin-top:0.25rem;">$0.00</div>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="glass-card">
+                    <div class="card-title"><i class="fa-solid fa-thumbs-up"></i> Qualification Metrics</div>
+                    <div style="margin-top:1rem; display:flex; flex-direction:column; gap:0.75rem;">
+                        <div style="display:flex; justify-content:space-between;"><span>Interested Leads</span><b
+                                id="sa-interested-leads" style="color:var(--accent);">0</b></div>
+                        <div style="display:flex; justify-content:space-between;"><span>Follow Up Needed</span><b
+                                id="sa-followup-leads" style="color:#eab308;">0</b></div>
+                        <div style="display:flex; justify-content:space-between;"><span>DNC Opt-Outs</span><b
+                                id="sa-dnc-leads" style="color:var(--danger);">0</b></div>
+                    </div>
+                </div>
+                <div class="glass-card">
+                    <div class="card-title"><i class="fa-solid fa-server"></i> System Status & Infrastructure</div>
+                    <div style="margin-top:1rem; font-size:0.85rem; color:var(--text-sub); line-height:1.6;">
+                        <div>✓ Express API Server: <b style="color:var(--accent);">Online</b></div>
+                        <div>✓ Groq LLM & Ollama Fallback: <b style="color:var(--accent);">Active</b></div>
+                        <div>✓ ElevenLabs TTS Memory Buffer: <b style="color:var(--accent);">Active</b></div>
+                        <div>✓ BullMQ Concurrency Queue: <b style="color:var(--accent);">Active</b></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUPER ADMIN TAB 2: ORGANIZATIONS -->
+        <div id="tab-organizations" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+                    <div class="card-title"><i class="fa-solid fa-sitemap"></i> Organization Management</div>
+                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                        <input type="text" id="search-orgs-input" class="form-control" style="width: 220px;"
+                            placeholder="Search name, email..." onkeyup="onOrgsSearchChange()">
+                        <select id="filter-orgs-status" class="form-control" style="width: 150px;"
+                            onchange="loadOrganizations()">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="suspended">Suspended</option>
+                        </select>
+                        <select id="filter-orgs-plan" class="form-control" style="width: 150px;"
+                            onchange="loadOrganizations()">
+                            <option value="">All Plans</option>
+                            <option value="enterprise">Enterprise</option>
+                            <option value="professional">Professional</option>
+                            <option value="starter">Starter</option>
+                            <option value="free">Free</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="openCreateOrgModal()"><i class="fa-solid fa-plus"></i>
+                            Create Organization</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Organization</th>
+                                <th>Admin Email</th>
+                                <th>Users</th>
+                                <th>Agents</th>
+                                <th>Leads</th>
+                                <th>Plan & Limits</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orgs-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                    <div id="orgs-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="orgs-prev-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeOrgsPage(-1)"
+                            disabled>Previous</button>
+                        <button id="orgs-next-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeOrgsPage(1)"
+                            disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUPER ADMIN TAB 3: PLATFORM USERS -->
+        <div id="tab-super-users" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+                    <div class="card-title"><i class="fa-solid fa-users-gear"></i> Platform User Directory</div>
+                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                        <input type="text" id="search-users-input" class="form-control" style="width: 200px;"
+                            placeholder="Search name, email..." onkeyup="onUsersSearchChange()">
+                        <select id="filter-users-org" class="form-control" style="width: 180px;"
+                            onchange="loadSuperUsers()"></select>
+                        <select id="filter-users-role" class="form-control" style="width: 140px;"
+                            onchange="loadSuperUsers()">
+                            <option value="">All Roles</option>
+                            <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                            <option value="ADMIN">ADMIN</option>
+                            <option value="MANAGER">MANAGER</option>
+                            <option value="AGENT">AGENT</option>
+                            <option value="VIEWER">VIEWER</option>
+                        </select>
+                        <select id="filter-users-status" class="form-control" style="width: 140px;"
+                            onchange="loadSuperUsers()">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="suspended">Suspended</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="openCreateUserModal()"><i
+                                class="fa-solid fa-user-plus"></i> Create User</button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Organization</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="super-users-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                    <div id="users-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="users-prev-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeSuperUsersPage(-1)"
+                            disabled>Previous</button>
+                        <button id="users-next-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeSuperUsersPage(1)"
+                            disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUPER ADMIN TAB 4: AUDIT LOGS -->
+        <div id="tab-audit-logs" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+                    <div class="card-title"><i class="fa-solid fa-shield-halved"></i> Audit & Compliance Trail</div>
+                    <input type="text" id="search-audit-input" class="form-control" style="width: 250px;"
+                        placeholder="Search action, email..." onkeyup="onAuditSearchChange()">
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User Email</th>
+                                <th>Action</th>
+                                <th>Resource</th>
+                                <th>Resource ID</th>
+                                <th>IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                    <div id="audit-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="audit-prev-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeAuditPage(-1)"
+                            disabled>Previous</button>
+                        <button id="audit-next-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeAuditPage(1)"
+                            disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ORGANIZATION ADMIN TAB: USER MANAGEMENT -->
+        <div id="tab-org-users" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-users"></i> Organization Team Members</div>
+                    <button class="btn btn-primary" onclick="openCreateUserModal()"><i
+                            class="fa-solid fa-user-plus"></i> Add Team Member</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Last Login</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="org-users-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Metrics Overview Bar (For Org Users) -->
+        <div id="org-metrics-bar"
+            style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+            <div class="glass-card" style="margin:0; padding:1.25rem;">
+                <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">Total
+                    Leads</div>
+                <div id="stat-total-leads"
+                    style="font-size:1.75rem; font-weight:700; color:var(--primary); margin-top:0.25rem;">0</div>
+            </div>
+            <div class="glass-card" style="margin:0; padding:1.25rem;">
+                <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">Active
+                    AI Agents</div>
+                <div id="stat-total-agents"
+                    style="font-size:1.75rem; font-weight:700; color:var(--accent); margin-top:0.25rem;">0</div>
+            </div>
+            <div class="glass-card" style="margin:0; padding:1.25rem;">
+                <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">
+                    Interested Leads</div>
+                <div id="stat-interested-leads"
+                    style="font-size:1.75rem; font-weight:700; color:#38bdf8; margin-top:0.25rem;">0</div>
+            </div>
+            <div class="glass-card" style="margin:0; padding:1.25rem;">
+                <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">DNC /
+                    Opt-Outs</div>
+                <div id="stat-dnc-leads"
+                    style="font-size:1.75rem; font-weight:700; color:var(--danger); margin-top:0.25rem;">0</div>
+            </div>
+            <div class="glass-card" style="margin:0; padding:1.25rem;">
+                <div style="font-size:0.75rem; color:var(--text-sub); text-transform:uppercase; font-weight:600;">Total
+                    Cost ($)</div>
+                <div id="stat-total-cost"
+                    style="font-size:1.75rem; font-weight:700; color:#f59e0b; margin-top:0.25rem;">$0.00</div>
+            </div>
+        </div>
+
+        <!-- TAB 1: AGENT MANAGEMENT -->
+        <div id="tab-agents" class="tab-view active">
+            <div class="card-header">
+                <h2>Active AI Sales Agents</h2>
+                <button class="btn btn-primary" onclick="openAgentModal()"><i class="fa-solid fa-plus"></i> Create AI
+                    Agent</button>
+            </div>
+            <div id="agents-grid" class="grid-3">
+                <!-- Agent cards rendered dynamically -->
+            </div>
+        </div>
+
+        <!-- TAB 2: LEADS & EXCEL UPLOADER -->
+        <div id="tab-leads" class="tab-view">
+            <div class="grid-2">
+                <div class="glass-card">
+                    <div class="card-title"><i class="fa-solid fa-cloud-arrow-up"></i> Upload Excel / CSV Lead Sheet
+                    </div>
+                    <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0.5rem 0 1.25rem 0;">
+                        Upload a <b>.xlsx</b> or <b>.csv</b> sheet containing columns: <code>Name</code>,
+                        <code>Phone</code>, <code>Interest</code>.
+                    </p>
+                    <form id="upload-form">
+                        <div class="form-group">
+                            <label>Select Assigned Agent</label>
+                            <select id="upload-agent-select" class="form-control" required></select>
+                        </div>
+                        <div class="dropzone" onclick="document.getElementById('file-input').click()">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <h4 id="file-label">Click or Drag & Drop Excel File</h4>
+                            <p style="color: var(--text-sub); font-size: 0.8rem; margin-top: 0.4rem;">Supports .xlsx,
+                                .xls, .csv</p>
+                            <input type="file" id="file-input" accept=".xlsx, .xls, .csv" style="display: none;"
+                                onchange="handleFileSelect(this)">
+                        </div>
+                        <button type="submit" class="btn btn-success"
+                            style="width: 100%; margin-top: 1.25rem; justify-content: center;">
+                            <i class="fa-solid fa-upload"></i> Upload & Import Leads
+                        </button>
+                    </form>
+                </div>
+
+                <div class="glass-card">
+                    <div class="card-title"><i class="fa-solid fa-user-plus"></i> Add Single Lead Manually</div>
+                    <form id="manual-lead-form">
+                        <div class="form-group">
+                            <label>Assign to Agent</label>
+                            <select id="manual-agent-select" class="form-control" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Name</label>
+                            <input type="text" id="manual-name" class="form-control" placeholder="Sahil" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number (with Country Code E.164)</label>
+                            <input type="text" id="manual-phone" class="form-control" placeholder="+917780922090"
+                                required>
+                        </div>
+                        <div class="form-group">
+                            <label>Customer Interest</label>
+                            <input type="text" id="manual-interest" class="form-control"
+                                placeholder="Restaurant Website Inquiry">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Add
+                            Lead</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Imported Leads Table -->
+            <div class="glass-card">
+                <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+                    <div class="card-title"><i class="fa-solid fa-users"></i> Imported Leads Database</div>
+                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                        <input type="text" id="search-leads-input" class="form-control" style="width: 220px;"
+                            placeholder="Search name, phone..." onkeyup="onLeadsSearchChange()">
+                        <select id="filter-agent-leads" class="form-control" style="width: 180px;"
+                            onchange="loadLeads()"></select>
+                        <button id="dnc-filter-btn" class="btn btn-warning"
+                            style="padding:0.5rem 0.8rem; font-size:0.8rem;" onclick="toggleDncFilter()">
+                            <i class="fa-solid fa-ban"></i> All Leads
+                        </button>
+                        <button class="btn btn-danger" style="padding:0.5rem 0.8rem; font-size:0.8rem;"
+                            onclick="clearAllLeads()">
+                            <i class="fa-solid fa-trash"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Phone Number</th>
+                                <th>Interest</th>
+                                <th>Status</th>
+                                <th>AI Qualification & Score</th>
+                                <th>Imported At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                    <div id="leads-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="leads-prev-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeLeadsPage(-1)"
+                            disabled>Previous</button>
+                        <button id="leads-next-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeLeadsPage(1)"
+                            disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: CAMPAIGNS & TRIGGER -->
+        <div id="tab-campaigns" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-rocket"></i> Automated AI Batch Campaign</div>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div class="form-group">
+                            <label>Campaign Name</label>
+                            <input type="text" id="campaign-name-input" class="form-control"
+                                value="AI Outbound Sales Outreach" placeholder="Enter campaign name...">
+                        </div>
+                        <div class="form-group">
+                            <label>Select Agent Campaign</label>
+                            <select id="campaign-agent-select" class="form-control"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Outbound Concurrency Limit (1-20 calls simultaneously)</label>
+                            <input type="number" id="campaign-concurrency-input" class="form-control" min="1" max="20"
+                                value="5">
+                        </div>
+                        <button class="btn btn-success"
+                            style="padding: 0.85rem 1.75rem; font-size: 1rem; width:100%; justify-content:center;"
+                            onclick="startCampaign()">
+                            <i class="fa-solid fa-play"></i> Launch Automated AI Campaign
+                        </button>
+                    </div>
+                    <div
+                        style="background: rgba(0,0,0,0.2); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--card-border);">
+                        <h4>Campaign Strategy & Engine</h4>
+                        <p style="color: var(--text-sub); font-size: 0.85rem; margin-top: 0.5rem; line-height: 1.6;">
+                            The BullMQ concurrency engine will automatically dial all eligible <b>Pending</b> leads
+                            assigned to the selected AI agent.
+                        </p>
+                        <ul
+                            style="color: var(--text-sub); font-size: 0.8rem; margin-top: 0.75rem; padding-left: 1.2rem; line-height: 1.6;">
+                            <li>Strictly excludes leads marked as <b>Do Not Call (DNC)</b>.</li>
+                            <li>Real-time financial cost calculation per call (Twilio + LLM + ElevenLabs).</li>
+                            <li>Zod AI Lead Scoring (0-100) and sentiment classification.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Campaign History Table -->
+            <div class="glass-card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-list-check"></i> Active & Past Campaigns</div>
+                    <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem;"
+                        onclick="loadCampaigns()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Campaign Name</th>
+                                <th>Status</th>
+                                <th>Total Leads</th>
+                                <th>Calling / Pending</th>
+                                <th>Completed / Failed</th>
+                                <th>Interested</th>
+                                <th>DNC</th>
+                                <th>Concurrency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="campaigns-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: TRANSCRIPTS & LOGS -->
+        <div id="tab-logs" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header">
+                    <div class="card-title"><i class="fa-solid fa-list"></i> Call Logs & Transcripts</div>
+                    <button class="btn btn-danger" style="padding:0.5rem 0.9rem; font-size:0.8rem;"
+                        onclick="clearAllLogs()">
+                        <i class="fa-solid fa-trash"></i> Clear All Transcripts
+                    </button>
+                </div>
+                <div class="table-responsive" style="margin-top: 1rem;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Call SID</th>
+                                <th>Lead Name</th>
+                                <th>Duration</th>
+                                <th>Turns</th>
+                                <th>AI Qualification & Score</th>
+                                <th>Cost ($)</th>
+                                <th>Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            <!-- Rendered dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                    <div id="logs-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button id="logs-prev-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeLogsPage(-1)"
+                            disabled>Previous</button>
+                        <button id="logs-next-btn" class="btn btn-primary"
+                            style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="changeLogsPage(1)"
+                            disabled>Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Agent Modal -->
+    <div id="agent-modal" class="modal">
+        <div class="modal-body glass-card">
+            <div class="card-header">
+                <div class="card-title" id="modal-title">Create New AI Sales Agent</div>
+                <i class="fa-solid fa-xmark" style="cursor: pointer;" onclick="closeAgentModal()"></i>
+            </div>
+            <form id="agent-form">
+                <input type="hidden" id="agent-id">
+                <div class="form-group">
+                    <label>Agent Name</label>
+                    <input type="text" id="agent-name" class="form-control" placeholder="Sarah" required>
+                </div>
+                <div class="form-group">
+                    <label>Company Name</label>
+                    <input type="text" id="agent-company" class="form-control" placeholder="Raybit Technologies"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label>Role Title</label>
+                    <input type="text" id="agent-role-title" class="form-control" value="Sales Specialist"
+                        placeholder="Sales Specialist">
+                </div>
+                <div class="form-group">
+                    <label>First Greeting Message (Supports {{lead_name}})</label>
+                    <input type="text" id="agent-first-message" class="form-control"
+                        placeholder="Hey {{lead_name}}, I am Sarah from Raybit Technologies. How are you doing today?"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label>Tone & Style Persona</label>
+                    <input type="text" id="agent-tone" class="form-control"
+                        placeholder="Relaxed, warm, friendly, conversational">
+                </div>
+                <div class="form-group">
+                    <label>Call Goal</label>
+                    <input type="text" id="agent-goal" class="form-control"
+                        placeholder="Discover current website needs and qualify restaurant lead">
+                </div>
+                <div class="form-group">
+                    <label>Knowledge Base Context</label>
+                    <textarea id="agent-kb" class="form-control"
+                        placeholder="Enter product details, pricing, FAQs, or restaurant website specs..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Voice Synthesis Engine</label>
+                    <select id="agent-voice-engine" class="form-control">
+                        <option value="elevenlabs">ElevenLabs (High Quality Neural Human)</option>
+                        <option value="msedge">Edge TTS (Standard Fallback)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>ElevenLabs Voice ID</label>
+                    <input type="text" id="agent-voice-id" class="form-control" value="JBFqnCBsd6RMkjVDRZzb"
+                        placeholder="JBFqnCBsd6RMkjVDRZzb">
+                </div>
+                <button type="submit" class="btn btn-primary"
+                    style="width: 100%; justify-content: center; margin-top: 1rem;">Save Agent</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Transcript View Modal -->
+    <div id="transcript-modal" class="modal">
+        <div class="modal-body glass-card">
+            <div class="card-header">
+                <div class="card-title">Call Transcript</div>
+                <i class="fa-solid fa-xmark" style="cursor: pointer;"
+                    onclick="document.getElementById('transcript-modal').classList.remove('active')"></i>
+            </div>
+            <div id="transcript-body" class="transcript-container"></div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal">
+        <div class="glass-card modal-body">
+            <div class="card-header">
+                <div class="card-title"><i class="fa-solid fa-lock"></i> Sign In to VoiceAI Enterprise</div>
+            </div>
+            <p style="color:var(--text-sub); font-size:0.85rem; margin:0.5rem 0 1.25rem 0;">Enter your credentials or
+                click a quick login button to access the platform.</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="login-email" class="form-control" value="superadmin@voiceai.com"
+                        placeholder="superadmin@voiceai.com or admin@voiceai.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" class="form-control" value="SuperAdmin@123"
+                        placeholder="Password" required>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.6rem; margin-top:1.5rem;">
+                    <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;"><i
+                            class="fa-solid fa-right-to-bracket"></i> Sign In</button>
+                    <div style="display:flex; gap:0.5rem;">
+                        <button type="button" class="btn btn-danger"
+                            style="flex:1; justify-content:center; padding:0.5rem; font-size:0.8rem;"
+                            onclick="quickLoginSuperAdmin()"><i class="fa-solid fa-crown"></i> Super Admin Quick
+                            Login</button>
+                        <button type="button" class="btn btn-success"
+                            style="flex:1; justify-content:center; padding:0.5rem; font-size:0.8rem;"
+                            onclick="quickLoginAdmin()"><i class="fa-solid fa-user-shield"></i> Org Admin Quick
+                            Login</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Organization Modal -->
+    <div id="create-org-modal" class="modal">
+        <div class="modal-body glass-card">
+            <div class="card-header">
+                <div class="card-title"><i class="fa-solid fa-building"></i> Create New Organization</div>
+                <i class="fa-solid fa-xmark" style="cursor: pointer;" onclick="closeModal('create-org-modal')"></i>
+            </div>
+            <form id="create-org-form">
+                <div class="form-group">
+                    <label>Organization Name</label>
+                    <input type="text" id="create-org-name" class="form-control" placeholder="Raybit Technologies"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label>Company Legal Name</label>
+                    <input type="text" id="create-org-company" class="form-control"
+                        placeholder="Raybit Technologies Pvt Ltd">
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Contact Email</label>
+                        <input type="email" id="create-org-email" class="form-control" placeholder="admin@raybit.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Contact Phone</label>
+                        <input type="text" id="create-org-phone" class="form-control" placeholder="+919876543210">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Subscription Plan</label>
+                        <select id="create-org-plan" class="form-control">
+                            <option value="enterprise">Enterprise</option>
+                            <option value="professional">Professional</option>
+                            <option value="starter">Starter</option>
+                            <option value="free">Free</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Max Users Limit</label>
+                        <input type="number" id="create-org-max-users" class="form-control" value="50" min="1">
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Max Leads Limit</label>
+                        <input type="number" id="create-org-max-leads" class="form-control" value="100000" min="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Concurrent Calls</label>
+                        <input type="number" id="create-org-max-concurrent" class="form-control" value="10" min="1"
+                            max="50">
+                    </div>
+                </div>
+
+                <div style="margin: 1.25rem 0 0.75rem 0; padding-top: 1rem; border-top: 1px solid var(--card-border);">
+                    <h4 style="font-size:0.9rem; color:var(--text-main); margin-bottom:0.75rem;"><i
+                            class="fa-solid fa-user-shield"></i> Optional Initial Admin User</h4>
+                    <div class="form-group">
+                        <label>Admin Full Name</label>
+                        <input type="text" id="create-org-admin-name" class="form-control" placeholder="Sahil">
+                    </div>
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Admin Email</label>
+                            <input type="email" id="create-org-admin-email" class="form-control"
+                                placeholder="admin@raybit.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Admin Password</label>
+                            <input type="password" id="create-org-admin-password" class="form-control"
+                                placeholder="Set secure password">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary"
+                    style="width: 100%; justify-content: center; margin-top: 1rem;">
+                    <i class="fa-solid fa-check"></i> Create Organization & Admin
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Organization Details Modal -->
+    <div id="org-details-modal" class="modal">
+        <div class="modal-body glass-card" style="max-width: 720px;">
+            <div class="card-header">
+                <div class="card-title" id="org-details-title">Organization Information</div>
+                <i class="fa-solid fa-xmark" style="cursor: pointer;" onclick="closeModal('org-details-modal')"></i>
+            </div>
+            <div id="org-details-body" style="margin-top:1rem;">
+                <!-- Rendered dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="create-user-modal" class="modal">
+        <div class="modal-body glass-card">
+            <div class="card-header">
+                <div class="card-title"><i class="fa-solid fa-user-plus"></i> Create User Account</div>
+                <i class="fa-solid fa-xmark" style="cursor: pointer;" onclick="closeModal('create-user-modal')"></i>
+            </div>
+            <form id="create-user-form">
+                <div id="create-user-org-group" class="form-group">
+                    <label>Select Organization</label>
+                    <select id="create-user-org-select" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="create-user-name" class="form-control" placeholder="Sahil Altaf" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="create-user-email" class="form-control" placeholder="user@raybit.com"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="create-user-password" class="form-control"
+                        placeholder="Password (min 6 chars)" required>
+                </div>
+                <div class="form-group">
+                    <label>Assigned Role</label>
+                    <select id="create-user-role-select" class="form-control">
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="MANAGER">MANAGER</option>
+                        <option value="AGENT">AGENT</option>
+                        <option value="VIEWER">VIEWER</option>
+                        <option value="SUPER_ADMIN" id="role-option-super-admin" style="display:none;">SUPER_ADMIN
+                            (Platform Wide)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary"
+                    style="width: 100%; justify-content: center; margin-top: 1rem;">
+                    <i class="fa-solid fa-user-check"></i> Create User Account
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Reset Password Modal -->
+    <div id="reset-password-modal" class="modal">
+        <div class="modal-body glass-card">
+            <div class="card-header">
+                <div class="card-title"><i class="fa-solid fa-key"></i> Reset User Password</div>
+                <i class="fa-solid fa-xmark" style="cursor: pointer;" onclick="closeModal('reset-password-modal')"></i>
+            </div>
+            <form id="reset-password-form">
+                <input type="hidden" id="reset-password-user-id">
+                <div class="form-group">
+                    <label>User Email</label>
+                    <input type="text" id="reset-password-email" class="form-control" readonly disabled>
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" id="reset-password-input" class="form-control"
+                        placeholder="Enter new password (min 6 chars)" required>
+                </div>
+                <button type="submit" class="btn btn-warning"
+                    style="width: 100%; justify-content: center; margin-top: 1rem;">
+                    <i class="fa-solid fa-key"></i> Confirm Reset Password
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+
+</html>
