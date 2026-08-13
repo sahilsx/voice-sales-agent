@@ -1,3 +1,4 @@
+import xlsx from 'xlsx';
 import Lead from '../models/Lead.js';
 import { findOrgByCustomId } from '../services/organizationService.js';
 import { manualLeadSchema } from '../validators/leadValidator.js';
@@ -240,6 +241,48 @@ export async function deleteAllLeads(req, res, next) {
         });
 
         res.json({ success: true, data: { message: `Cleared ${result.deletedCount} leads` } });
+    } catch (err) {
+        next(err);
+    }
+}
+
+export async function downloadLeadTemplate(req, res, next) {
+    try {
+        const format = (req.query.format || 'xlsx').toLowerCase();
+
+        const sampleData = [
+            {
+                'lead_name': 'John Doe',
+                'lead_phone': '+12345678901',
+                'lead_interest': 'Restaurant Website Inquiry'
+            },
+            {
+                'lead_name': 'Sarah Smith',
+                'lead_phone': '+19876543210',
+                'lead_interest': 'Mobile Menu Demo'
+            },
+            {
+                'lead_name': 'Alex Johnson',
+                'lead_phone': '+11223344556',
+                'lead_interest': 'Online Ordering System'
+            }
+        ];
+
+        const worksheet = xlsx.utils.json_to_sheet(sampleData);
+        const workbook = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Leads');
+
+        if (format === 'csv') {
+            const csvOutput = xlsx.utils.sheet_to_csv(worksheet);
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            res.setHeader('Content-Disposition', 'attachment; filename="leads_sample_template.csv"');
+            return res.send(csvOutput);
+        } else {
+            const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename="leads_sample_template.xlsx"');
+            return res.send(buffer);
+        }
     } catch (err) {
         next(err);
     }

@@ -19,7 +19,8 @@ import {
     uploadLeadsFile,
     toggleDoNotCall,
     deleteLead,
-    deleteAllLeads
+    deleteAllLeads,
+    downloadLeadTemplate
 } from '../controllers/leadController.js';
 
 import {
@@ -62,6 +63,7 @@ router.delete('/agents/:id', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLE
 // ---------------------------------------------------------------------
 // LEADS API & EXCEL/CSV UPLOAD
 // ---------------------------------------------------------------------
+router.get('/leads/template', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.AGENT, ROLES.VIEWER), downloadLeadTemplate);
 router.get('/leads', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.AGENT, ROLES.VIEWER), getLeads);
 router.post('/leads/manual', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.AGENT), addManualLead);
 router.post('/leads/upload', uploadLimiter, authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.AGENT), upload.single('file'), uploadLeadsFile);

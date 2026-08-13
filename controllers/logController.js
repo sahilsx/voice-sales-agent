@@ -7,6 +7,8 @@ export async function getLogs(req, res, next) {
         const limit = Math.min(100, parseInt(req.query.limit, 10) || 50);
 
         const query = { organizationId: req.organizationId };
+        if (req.query.lead_id) query.leadId = req.query.lead_id;
+        if (req.query.agent_id) query.agentId = req.query.agent_id;
 
         const total = await CallLog.countDocuments(query);
         const logs = await CallLog.find(query)

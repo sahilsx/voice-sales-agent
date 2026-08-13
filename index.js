@@ -16,6 +16,9 @@ import { warmUpOllama } from './services/ai/conversation.js';
 
 const app = express();
 
+// Trust reverse proxy (Ngrok / Nginx / cloud load balancers) for accurate rate limiting and IP resolution
+app.set('trust proxy', 1);
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 

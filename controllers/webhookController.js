@@ -4,7 +4,7 @@ import CallLog from '../models/CallLog.js';
 import Campaign from '../models/Campaign.js';
 import { buildSystemPrompt, buildFollowUpSystemPrompt } from '../services/ai/promptBuilder.js';
 import { queryLLM } from '../services/ai/conversation.js';
-import { detectDoNotCall, parseStructuredAiOutput, calculateLeadScore } from '../services/ai/qualification.js';
+import { detectDoNotCall, parseStructuredAiOutput, calculateLeadScore, analyzeCallQualification } from '../services/ai/qualification.js';
 import { buildGatherTwiml, buildErrorTwiml } from '../services/telephony/twilioService.js';
 import { speakWithElevenLabs } from '../services/tts/elevenLabsService.js';
 import { CALL_STATUSES, QUALIFICATIONS, COST_RATES, CAMPAIGN_STATUSES } from '../config/constants.js';
@@ -122,7 +122,29 @@ export async function handleVoiceConnect(req, res) {
             goodbyeText: "I didn't hear a response. Thanks for your time! Have a great day."
         });
 
-        await Lead.updateOne({ id: lead.id, organizationId }, { status: CALL_STATUSES.IN_PROGRESS });
+        if (lead && lead.id) {
+            await Lead.updateOne(
+                { id: lead.id, organizationId },
+                { status: CALL_STATUSES.IN_PROGRESS, call_sid: callSid }
+            );
+        }
+
+        // Create initial CallLog record so every call has a log entry from the start
+        await CallLog.findOneAndUpdate(
+            { callSid, organizationId },
+            {
+                callSid,
+                organizationId,
+                agentId: agent.id,
+                leadId: lead.id,
+                lead_name: lead.lead_name,
+                agent_name: agent.name,
+                status: CALL_STATUSES.IN_PROGRESS,
+                startedAt: new Date(),
+                transcript: [{ role: 'assistant', content: initialGreeting }]
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
 
         res.type('text/xml').status(200).send(twiml);
     } catch (err) {
@@ -262,56 +284,48 @@ export async function handleStatusCallback(req, res) {
         let leadScore = 0;
         let isDnc = false;
 
-        if (session && session.history && session.history.length > 2) {
-            isDnc = detectDoNotCall(session.history);
-            if (isDnc) {
-                qualification = QUALIFICATIONS.NOT_INTERESTED;
-                leadScore = 0;
-            } else if (isCompleted) {
-                // Bug fix: Only mark Interested when call genuinely completed AND
-                // no DNC signal. Use the lead score to determine actual qualification.
-                const scoreData = { qualification: QUALIFICATIONS.UNKNOWN, decisionMaker: true };
-                leadScore = calculateLeadScore(scoreData);
-                // Use score thresholds: 60+ = Interested, 30-59 = Follow Up, <30 = Unknown
-                if (leadScore >= 60) {
-                    qualification = QUALIFICATIONS.INTERESTED;
-                } else if (leadScore >= 30) {
-                    qualification = QUALIFICATIONS.FOLLOW_UP;
-                } else {
-                    qualification = QUALIFICATIONS.UNKNOWN;
-                }
-            } else {
-                // Call didn't complete (busy, no-answer, failed)
-                qualification = QUALIFICATIONS.UNKNOWN;
-                leadScore = 0;
-            }
-
-            await Lead.updateOne(
-                { call_sid: callSid, organizationId },
-                {
-                    status: finalCallStatus,
-                    qualification,
-                    leadScore,
-                    doNotCall: isDnc
-                }
-            );
-
-            await CallLog.updateOne(
-                { callSid, organizationId },
-                {
-                    status: finalCallStatus,
-                    qualification,
-                    leadScore,
-                    doNotCall: isDnc,
-                    endedAt: new Date()
-                }
-            );
-        } else {
-            await Lead.updateOne(
-                { call_sid: callSid, organizationId },
-                { status: finalCallStatus }
-            );
+        if (session && session.history && session.history.length > 1) {
+            const analysis = analyzeCallQualification(session.history);
+            qualification = analysis.qualification;
+            leadScore = analysis.leadScore;
+            isDnc = analysis.isDnc;
         }
+
+        const leadId = session?.lead?.id;
+        const leadFilter = leadId
+            ? { id: leadId, organizationId }
+            : { call_sid: callSid, organizationId };
+
+        await Lead.updateOne(
+            leadFilter,
+            {
+                status: finalCallStatus,
+                qualification,
+                leadScore,
+                doNotCall: isDnc
+            }
+        );
+
+        const currentCallTranscript = session?.history ? session.history.slice(session.callStartIndex ?? 0) : [];
+
+        await CallLog.findOneAndUpdate(
+            { callSid, organizationId },
+            {
+                callSid,
+                organizationId,
+                agentId: session?.agent?.id,
+                leadId: session?.lead?.id,
+                lead_name: session?.lead?.lead_name,
+                agent_name: session?.agent?.name,
+                status: finalCallStatus,
+                qualification,
+                leadScore,
+                doNotCall: isDnc,
+                transcript: currentCallTranscript,
+                endedAt: new Date()
+            },
+            { upsert: true, returnDocument: 'after' }
+        );
 
         // ─── Sync Campaign Counters ───────────────────────────────────────────
         const updatedLead = await Lead.findOne({ call_sid: callSid, organizationId }).lean();

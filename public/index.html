@@ -358,12 +358,29 @@
         <div id="tab-leads" class="tab-view">
             <div class="grid-2">
                 <div class="glass-card">
-                    <div class="card-title"><i class="fa-solid fa-cloud-arrow-up"></i> Upload Excel / CSV Lead Sheet
+                    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                        <span><i class="fa-solid fa-cloud-arrow-up"></i> Upload Excel / CSV Lead Sheet</span>
                     </div>
-                    <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0.5rem 0 1.25rem 0;">
-                        Upload a <b>.xlsx</b> or <b>.csv</b> sheet containing columns: <code>Name</code>,
-                        <code>Phone</code>, <code>Interest</code>.
+                    <p style="color: var(--text-sub); font-size: 0.85rem; margin: 0.5rem 0 0.75rem 0;">
+                        Upload a <b>.xlsx</b> or <b>.csv</b> sheet. Required columns: <code>lead_name</code> (or <code>Name</code>),
+                        <code>lead_phone</code> (or <code>Phone</code>), <code>lead_interest</code> (or <code>Interest</code>).
                     </p>
+
+                    <!-- DOWNLOAD TEMPLATE BUTTONS -->
+                    <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px; padding: 0.75rem; margin-bottom: 1.25rem;">
+                        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.4rem;">
+                            <i class="fa-solid fa-download" style="color: #818cf8;"></i> Need the right format? Download sample template:
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;" onclick="downloadSampleTemplate('xlsx')">
+                                <i class="fa-solid fa-file-excel" style="color: #107c41;"></i> Excel Template (.xlsx)
+                            </button>
+                            <button type="button" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;" onclick="downloadSampleTemplate('csv')">
+                                <i class="fa-solid fa-file-csv" style="color: #0284c7;"></i> CSV Template (.csv)
+                            </button>
+                        </div>
+                    </div>
+
                     <form id="upload-form">
                         <div class="form-group">
                             <label>Select Assigned Agent</label>
@@ -543,10 +560,14 @@
             <div class="glass-card">
                 <div class="card-header">
                     <div class="card-title"><i class="fa-solid fa-list"></i> Call Logs & Transcripts</div>
-                    <button class="btn btn-danger" style="padding:0.5rem 0.9rem; font-size:0.8rem;"
-                        onclick="clearAllLogs()">
-                        <i class="fa-solid fa-trash"></i> Clear All Transcripts
-                    </button>
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                        <button class="btn btn-outline" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="clearLogsLeadFilter()">
+                            <i class="fa-solid fa-rotate-left"></i> Show All Logs
+                        </button>
+                        <button class="btn btn-danger" style="padding:0.4rem 0.8rem; font-size:0.8rem;" onclick="clearAllLogs()">
+                            <i class="fa-solid fa-trash"></i> Clear All Transcripts
+                        </button>
+                    </div>
                 </div>
                 <div class="table-responsive" style="margin-top: 1rem;">
                     <table>
