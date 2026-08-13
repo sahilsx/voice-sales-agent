@@ -297,6 +297,13 @@
                         </tbody>
                     </table>
                 </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:1rem; flex-wrap:wrap; gap:0.5rem;">
+                    <span id="org-users-pagination-info" style="font-size:0.8rem; color:var(--text-sub);"></span>
+                    <div style="display:flex; gap:0.4rem;">
+                        <button id="org-users-prev-btn" class="btn btn-primary" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="changeOrgUsersPage(-1)" disabled><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                        <button id="org-users-next-btn" class="btn btn-primary" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="changeOrgUsersPage(1)" disabled>Next <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
             </div>
         </div>
 

@@ -1,6 +1,7 @@
 import xlsx from 'xlsx';
 import fs from 'fs';
 import Lead from '../models/Lead.js';
+import CallLog from '../models/CallLog.js';
 import { validatePhoneNumber, formatE164 } from '../validators/leadValidator.js';
 import { CALL_STATUSES, QUALIFICATIONS } from '../config/constants.js';
 
@@ -92,5 +93,47 @@ export async function parseAndImportLeads({ filePath, agentId, organizationId })
     } catch (err) {
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         throw err;
+    }
+}
+
+/**
+ * Fetches the most recent completed call transcript for a lead.
+ * Used to seed follow-up call sessions with prior conversation context.
+ *
+ * @param {string} leadId
+ * @param {string} organizationId
+ * @returns {{ transcript: Array, callDate: Date, callDurationSeconds: number } | null}
+ */
+export async function getPreviousCallTranscript(leadId, organizationId) {
+    try {
+        const callLog = await CallLog.findOne({
+            leadId,
+            organizationId,
+            status: CALL_STATUSES.COMPLETED,
+            // Must have an actual conversation — at least 3 messages (system + 1 exchange)
+            $expr: { $gt: [{ $size: { $ifNull: ['$transcript', []] } }, 2] }
+        })
+            .sort({ createdAt: -1 }) // Most recent first
+            .lean();
+
+        if (!callLog) return null;
+
+        // Strip out system messages — only keep user/assistant turns for context injection
+        const conversationTurns = (callLog.transcript || []).filter(
+            msg => msg.role === 'user' || msg.role === 'assistant'
+        );
+
+        if (conversationTurns.length === 0) return null;
+
+        return {
+            transcript: conversationTurns,
+            callDate: callLog.endedAt || callLog.createdAt,
+            callDurationSeconds: callLog.duration_seconds || 0,
+            qualification: callLog.qualification || 'Unknown',
+            callSid: callLog.callSid
+        };
+    } catch (err) {
+        console.error('[leadService] getPreviousCallTranscript error:', err.message);
+        return null;
     }
 }

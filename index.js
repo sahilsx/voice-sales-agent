@@ -27,7 +27,12 @@ app.get('/audio/:audioId', (req, res) => {
     const audioId = req.params.audioId;
     const buffer = getAudioBuffer(audioId);
     if (!buffer) return res.status(404).send('Audio expired');
-    res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': buffer.length });
+    res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': buffer.length,
+        'Accept-Ranges': 'bytes',
+        'ngrok-skip-browser-warning': 'true'
+    });
     res.send(buffer);
 });
 
@@ -59,6 +64,10 @@ async function startServer() {
         console.log(`✓ Express Voice Platform running on http://localhost:${PORT}`);
 
         try {
+            // Disconnect any stale session from a previous nodemon restart before
+            // opening a new one. This prevents ERR_NGROK_334 on hot-reloads.
+            await ngrok.disconnect().catch(() => {});
+
             ngrokListener = await ngrok.forward({
                 addr: PORT,
                 authtoken: process.env.NGROK_AUTHTOKEN,
@@ -68,6 +77,22 @@ async function startServer() {
             app.set('publicTunnelUrl', publicUrl);
             console.log(`✓ Public Ngrok Security Tunnel Established: ${publicUrl}`);
         } catch (err) {
+            // ERR_NGROK_334 = tunnel endpoint already online (e.g. nodemon race).
+            // Recover by fetching the existing tunnel URL from the local ngrok API.
+            if (err.error_code === 'ERR_NGROK_334' || (err.message || '').includes('ERR_NGROK_334')) {
+                try {
+                    const apiResp = await fetch('http://127.0.0.1:4040/api/tunnels');
+                    if (apiResp.ok) {
+                        const apiData = await apiResp.json();
+                        const existingUrl = apiData?.tunnels?.[0]?.public_url;
+                        if (existingUrl) {
+                            app.set('publicTunnelUrl', existingUrl);
+                            console.log(`✓ Ngrok Tunnel Reused (already online): ${existingUrl}`);
+                            return;
+                        }
+                    }
+                } catch (_) { /* fall through */ }
+            }
             console.warn(`⚠️  Ngrok Tunnel Notice: ${err.message || err}`);
             app.set('publicTunnelUrl', `http://localhost:${PORT}`);
         }

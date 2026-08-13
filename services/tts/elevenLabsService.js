@@ -55,7 +55,7 @@ export async function speakWithElevenLabs(text, publicTunnelUrl, voiceIdOverride
         const latency = Date.now() - start;
         console.log(`   [ElevenLabs TTS] Audio rendered (${audioBuffer.byteLength} bytes) in ${latency}ms`);
         return {
-            audioUrl: `${publicTunnelUrl}/audio/${audioId}`,
+            audioUrl: `${publicTunnelUrl}/audio/${audioId}?ngrok-skip-browser-warning=true`,
             latency,
             charCount: text.length
         };

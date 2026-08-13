@@ -18,9 +18,36 @@ export async function connectDB() {
     try {
         await mongoose.connect(MONGODB_URI);
         console.log('✓ Connected to MongoDB Atlas Cloud Database!');
+        await runMigrations();
         await seedDefaultAgents();
     } catch (err) {
         console.error('❌ MongoDB Atlas connection error:', err.message);
+    }
+}
+
+/**
+ * One-time index migrations. Drops stale indexes left over from old schema
+ * versions so they don’t conflict with the current schema.
+ */
+async function runMigrations() {
+    try {
+        const callLogCollection = mongoose.connection.collection('calllogs');
+        const indexes = await callLogCollection.indexes();
+
+        // Drop the legacy snake_case `call_sid_1` unique index — the current
+        // schema uses camelCase `callSid`. Having both causes E11000 duplicate
+        // key errors when multiple documents have call_sid: null.
+        const hasLegacyIndex = indexes.some(idx => idx.name === 'call_sid_1');
+        if (hasLegacyIndex) {
+            await callLogCollection.dropIndex('call_sid_1');
+            console.log('✓ [Migration] Dropped stale index: call_sid_1 from calllogs.');
+        }
+    } catch (err) {
+        // Non-fatal — log and continue. If the index is already gone, MongoDB
+        // throws a harmless "index not found" error.
+        if (err.codeName !== 'IndexNotFound') {
+            console.warn('⚠️ [Migration] runMigrations warning:', err.message);
+        }
     }
 }
 
@@ -158,7 +185,7 @@ export async function getCallLogs() {
 export async function saveCallLog(logData) {
     await connectDB();
     const updated = await CallLogModel.findOneAndUpdate(
-        { call_sid: logData.call_sid },
+        { callSid: logData.callSid || logData.call_sid },
         logData,
         { upsert: true, new: true }
     ).lean();

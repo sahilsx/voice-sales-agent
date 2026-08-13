@@ -8,7 +8,6 @@ describe('DNC Phrase Detection Tests', () => {
             { role: 'user', content: 'Please stop calling me!' }
         ];
         expect(detectDoNotCall(history1)).toBe(true);
-
         const history2 = [
             { role: 'assistant', content: 'Hello!' },
             { role: 'user', content: 'Take me off your list right now' }

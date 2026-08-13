@@ -7,6 +7,9 @@
         let superUsersPage = 1, superUsersTotalPages = 1, superUsersSearchQuery = '', superUsersSearchTimeout = null;
         let auditPage = 1, auditTotalPages = 1, auditSearchQuery = '', auditSearchTimeout = null;
 
+        // Org Users Pagination
+        let orgUsersPage = 1, orgUsersTotalPages = 1;
+
         function updateAuthUI() {
             const authBar = document.getElementById('user-auth-bar');
             const navLinks = document.getElementById('main-nav-links');
@@ -500,10 +503,10 @@
                 `;
             });
 
-            // Populate Org Filter dropdown if empty
+            // Populate Org Filter dropdown if empty — limit=200 prevents unbounded fetch
             const orgSelect = document.getElementById('filter-users-org');
             if (orgSelect && orgSelect.options.length <= 1) {
-                const orgsRes = await authFetch('/api/super-admin/organizations');
+                const orgsRes = await authFetch('/api/super-admin/organizations?limit=200');
                 const orgsData = await orgsRes.json();
                 if (orgsData.success) {
                     orgSelect.innerHTML = '<option value="">All Organizations</option>';
@@ -691,11 +694,23 @@
         }
 
         async function loadOrgUsers() {
-            const res = await authFetch('/api/users');
+            const res = await authFetch(`/api/users?page=${orgUsersPage}&limit=20`);
             const result = await res.json();
             if (!result.success) return;
 
             const users = result.data || [];
+            const pagination = result.pagination || { page: 1, pages: 1, total: users.length };
+            orgUsersPage = pagination.page;
+            orgUsersTotalPages = pagination.pages || 1;
+
+            // Render pagination info (inject if elements exist)
+            const paginationEl = document.getElementById('org-users-pagination-info');
+            if (paginationEl) paginationEl.textContent = `Page ${orgUsersPage} of ${orgUsersTotalPages} (${pagination.total} total)`;
+            const prevBtn = document.getElementById('org-users-prev-btn');
+            const nextBtn = document.getElementById('org-users-next-btn');
+            if (prevBtn) prevBtn.disabled = orgUsersPage <= 1;
+            if (nextBtn) nextBtn.disabled = orgUsersPage >= orgUsersTotalPages;
+
             const tbody = document.getElementById('org-users-table-body');
             tbody.innerHTML = '';
 
@@ -724,6 +739,11 @@
                     </tr>
                 `;
             });
+        }
+
+        function changeOrgUsersPage(delta) {
+            orgUsersPage = Math.max(1, Math.min(orgUsersTotalPages, orgUsersPage + delta));
+            loadOrgUsers();
         }
 
         // Toast Notification Helper
@@ -1170,33 +1190,28 @@
 
         async function updateDashboardMetrics() {
             try {
-                const leadsRes = await authFetch('/api/leads?limit=1000');
-                const leadsData = await leadsRes.json();
-                const leads = Array.isArray(leadsData.data) ? leadsData.data : [];
+                // Single lightweight request — backend uses countDocuments + aggregate
+                // instead of fetching full collections (replaces 3 x limit=1000 fetches)
+                const statsRes = await authFetch('/api/stats');
+                const statsData = await statsRes.json();
+                if (!statsData.success) return;
 
-                const agentsRes = await authFetch('/api/agents');
-                const agentsData = await agentsRes.json();
-                const agents = Array.isArray(agentsData.data) ? agentsData.data : [];
-
-                const logsRes = await authFetch('/api/logs?limit=1000');
-                const logsData = await logsRes.json();
-                const logs = Array.isArray(logsData.data) ? logsData.data : [];
+                const s = statsData.data;
 
                 const elLeads = document.getElementById('stat-total-leads');
-                if (elLeads) elLeads.textContent = leads.length;
+                if (elLeads) elLeads.textContent = s.totalLeads;
 
                 const elAgents = document.getElementById('stat-total-agents');
-                if (elAgents) elAgents.textContent = agents.length;
+                if (elAgents) elAgents.textContent = s.totalAgents;
 
                 const elInterested = document.getElementById('stat-interested-leads');
-                if (elInterested) elInterested.textContent = leads.filter(l => l.qualification === 'Interested' || l.sentiment === 'Interested').length;
+                if (elInterested) elInterested.textContent = s.interestedLeads;
 
                 const elDnc = document.getElementById('stat-dnc-leads');
-                if (elDnc) elDnc.textContent = leads.filter(l => l.doNotCall).length;
+                if (elDnc) elDnc.textContent = s.dncLeads;
 
-                const totalCost = logs.reduce((acc, l) => acc + (l.cost?.total || 0), 0);
                 const elCost = document.getElementById('stat-total-cost');
-                if (elCost) elCost.textContent = `$${totalCost.toFixed(2)}`;
+                if (elCost) elCost.textContent = `$${(s.totalCallCost || 0).toFixed(2)}`;
             } catch (e) { }
         }
 

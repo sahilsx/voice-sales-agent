@@ -34,6 +34,8 @@ import {
     deleteAllLogs
 } from '../controllers/logController.js';
 
+import { getOrgStats } from '../controllers/statsController.js';
+
 const router = express.Router();
 
 // Setup Multer for file uploads
@@ -80,5 +82,10 @@ router.post('/campaigns/start', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, R
 router.get('/logs', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.AGENT, ROLES.VIEWER), getLogs);
 router.delete('/logs/:callSid', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), deleteLog);
 router.delete('/logs', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER), deleteAllLogs);
+
+// ---------------------------------------------------------------------
+// DASHBOARD STATS — lightweight aggregation, no full collection fetches
+// ---------------------------------------------------------------------
+router.get('/stats', authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.AGENT, ROLES.VIEWER), getOrgStats);
 
 export default router;

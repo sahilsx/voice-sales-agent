@@ -16,7 +16,8 @@ async function queryGroqRaw(messages) {
     if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
     const start = Date.now();
     const systemPrompt = messages[0];
-    const recentHistory = messages.slice(1).slice(-4);
+    // Keep last 12 turns (was 4) so the AI remembers what the customer already answered
+    const recentHistory = messages.slice(1).slice(-12);
     const pruned = [systemPrompt, ...recentHistory];
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -28,8 +29,8 @@ async function queryGroqRaw(messages) {
         body: JSON.stringify({
             model: 'llama-3.1-8b-instant',
             messages: pruned,
-            max_tokens: 45,
-            temperature: 0.5
+            max_tokens: 60,       // was 45 — prevents mid-sentence cutoffs that restart topics
+            temperature: 0.7      // was 0.5 — reduces repetitive loop behaviour
         })
     });
 
@@ -43,7 +44,8 @@ async function queryGroqRaw(messages) {
 async function queryOllamaRaw(messages) {
     const start = Date.now();
     const systemPrompt = messages[0];
-    const recentHistory = messages.slice(1).slice(-4);
+    // Keep last 12 turns (was 4) so the AI remembers what the customer already answered
+    const recentHistory = messages.slice(1).slice(-12);
     const pruned = [systemPrompt, ...recentHistory];
 
     const response = await fetch(env.OLLAMA_URL, {
@@ -52,7 +54,7 @@ async function queryOllamaRaw(messages) {
         body: JSON.stringify({
             model: 'llama3.2',
             messages: pruned,
-            options: { num_predict: 35, temperature: 0.5 },
+            options: { num_predict: 50, temperature: 0.7 }, // was 35/0.5
             stream: false
         })
     });

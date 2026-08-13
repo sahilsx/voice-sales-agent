@@ -70,6 +70,8 @@ class InMemoryCampaignQueue {
                     // Double-check DNC and current status before dialing
                     const freshLead = await Lead.findOne({ id: lead.id, organizationId }).lean();
                     if (!freshLead || freshLead.doNotCall || freshLead.status !== CALL_STATUSES.INITIATED) {
+                        // Skip and decrement pending so the campaign can still complete
+                        await Campaign.updateOne({ id: campaignId }, { $inc: { failed: 1, pending: -1 } });
                         return;
                     }
 
@@ -102,12 +104,11 @@ class InMemoryCampaignQueue {
             }));
         }
 
-        const finalCampaign = await Campaign.findOne({ id: campaignId });
-        if (finalCampaign && this.runningCampaigns.get(campaignId)?.state !== 'PAUSED') {
-            finalCampaign.status = CAMPAIGN_STATUSES.COMPLETED;
-            finalCampaign.completedAt = new Date();
-            await finalCampaign.save();
-        }
+        // NOTE: Do NOT mark campaign COMPLETED here.
+        // Completion is handled by handleStatusCallback() in webhookController.js
+        // once all Twilio status webhooks have fired and calling=0, pending=0.
+        // Prematurely marking it COMPLETED here caused the status callback to not
+        // find the campaign (filtered by status=running/queued) and skip counter updates.
         this.runningCampaigns.delete(campaignId);
     }
 

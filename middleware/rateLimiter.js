@@ -17,7 +17,7 @@ export const authLimiter = rateLimit({
 
 export const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: 100, // 100 requests per 15 mins
+    limit: 300, // 100 requests per 15 mins
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: {

@@ -32,7 +32,12 @@ const DNC_PHRASES = [
     "no more calls",
     "do not contact me",
     "unsubscribe",
-    "never call again"
+    "never call again",
+    "i am not interested",
+    "i am not interested in this project",
+    "i am not interested in this service",
+    "not interested",
+    "dont call me again"
 ];
 
 export function detectDoNotCall(history = []) {

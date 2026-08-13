@@ -2,12 +2,13 @@ import Agent from '../models/Agent.js';
 import Lead from '../models/Lead.js';
 import CallLog from '../models/CallLog.js';
 import Campaign from '../models/Campaign.js';
-import { buildSystemPrompt } from '../services/ai/promptBuilder.js';
+import { buildSystemPrompt, buildFollowUpSystemPrompt } from '../services/ai/promptBuilder.js';
 import { queryLLM } from '../services/ai/conversation.js';
 import { detectDoNotCall, parseStructuredAiOutput, calculateLeadScore } from '../services/ai/qualification.js';
 import { buildGatherTwiml, buildErrorTwiml } from '../services/telephony/twilioService.js';
 import { speakWithElevenLabs } from '../services/tts/elevenLabsService.js';
 import { CALL_STATUSES, QUALIFICATIONS, COST_RATES, CAMPAIGN_STATUSES } from '../config/constants.js';
+import { getPreviousCallTranscript } from '../services/leadService.js';
 
 const activeSessions = new Map();
 const processedEvents = new Set();
@@ -47,23 +48,61 @@ export async function handleVoiceConnect(req, res) {
             lead = { id: leadId, lead_name: 'Customer', lead_interest: 'our services', doNotCall: false };
         }
 
-        console.log(`\n[Call Connected] CallSid: ${callSid} | Agent: ${agent.name} | Lead: ${lead.lead_name}`);
+        const isFollowUp = lead.qualification === QUALIFICATIONS.FOLLOW_UP;
 
-        const systemPrompt = buildSystemPrompt(agent, lead);
+        // For follow-up calls, fetch the prior call's transcript to seed the AI's memory
+        let previousCall = null;
+        if (isFollowUp && lead.id) {
+            previousCall = await getPreviousCallTranscript(lead.id, organizationId);
+            if (previousCall) {
+                console.log(`[Follow-Up] Loaded prior transcript for Lead ${lead.id} (${previousCall.transcript.length} turns from ${previousCall.callDate})`);
+            } else {
+                console.log(`[Follow-Up] No prior transcript found for Lead ${lead.id} — starting fresh follow-up.`);
+            }
+        }
+
+        console.log(`\n[Call Connected] CallSid: ${callSid} | Agent: ${agent.name} | Lead: ${lead.lead_name} | FollowUp: ${isFollowUp}`);
+
+        // Build system prompt — use follow-up variant if we have prior call context
+        const systemPrompt = (isFollowUp && previousCall)
+            ? buildFollowUpSystemPrompt(agent, lead, previousCall)
+            : buildSystemPrompt(agent, lead);
+
         const history = [{ role: 'system', content: systemPrompt }];
+
+        // Inject previous conversation turns into the new session history so the AI
+        // treats them as already-said context and never re-asks those questions
+        if (isFollowUp && previousCall && previousCall.transcript.length > 0) {
+            const priorTurns = previousCall.transcript.slice(-20); // Cap at 20 turns
+            history.push(...priorTurns);
+            console.log(`[Follow-Up] Injected ${priorTurns.length} prior turns into session history.`);
+        }
 
         activeSessions.set(callSid, {
             history,
             agent,
             lead,
             organizationId,
+            isFollowUp,
+            // Track where current-call turns begin in history so the saved
+            // transcript only includes THIS call, not injected prior turns.
+            callStartIndex: history.length,
             startTime: Date.now(),
             totalTtsChars: 0,
             totalLlmLatency: 0,
             totalTtsLatency: 0
         });
 
-        const initialGreeting = agent.first_message.replace('{{lead_name}}', lead.lead_name);
+        // For follow-ups, use a warm greeting that references the prior call instead
+        // of the generic first_message which would feel like starting over
+        let initialGreeting;
+        if (isFollowUp && previousCall) {
+            const followUpMsg = agent.follow_up_message || `Hey {{lead_name}}, it's ${agent.name || 'me'} again. Just following up from our last chat.`;
+            initialGreeting = followUpMsg.replace('{{lead_name}}', lead.lead_name);
+        } else {
+            initialGreeting = agent.first_message.replace('{{lead_name}}', lead.lead_name);
+        }
+
         history.push({ role: 'assistant', content: initialGreeting });
 
         const publicTunnelUrl = req.app.get('publicTunnelUrl') || `${req.protocol}://${req.get('host')}`;
@@ -155,7 +194,9 @@ export async function handleCustomerRespond(req, res) {
         const ttsCost = session.totalTtsChars * COST_RATES.TTS_PER_CHARACTER;
         const totalCost = parseFloat((twilioCost + llmCost + ttsCost).toFixed(4));
 
-        // Save CallLog state
+        // Save CallLog state — only save turns from THIS call (slice from callStartIndex)
+        // so that injected prior-call history is not duplicated in the transcript.
+        const currentCallTranscript = session.history.slice(session.callStartIndex ?? 0);
         await CallLog.findOneAndUpdate(
             { callSid, organizationId: session.organizationId },
             {
@@ -166,7 +207,7 @@ export async function handleCustomerRespond(req, res) {
                 lead_name: session.lead.lead_name,
                 agent_name: session.agent.name,
                 duration_seconds: durationSec,
-                transcript: session.history,
+                transcript: currentCallTranscript,
                 doNotCall: isDnc,
                 latency: {
                     llm: session.totalLlmLatency,
@@ -180,7 +221,7 @@ export async function handleCustomerRespond(req, res) {
                     total: totalCost
                 }
             },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         const twiml = buildGatherTwiml({
@@ -204,7 +245,14 @@ export async function handleStatusCallback(req, res) {
         console.log(`\n[Call Ended Event] CallSid: ${callSid} | Status: ${callStatus}`);
 
         const session = activeSessions.get(callSid);
-        let organizationId = session?.organizationId || 'org_master';
+        let organizationId = session?.organizationId;
+
+        // Bug fix: If the in-memory session is already gone (Twilio can fire /status
+        // after the server cleans up sessions), recover orgId from the Lead record.
+        if (!organizationId) {
+            const orphanLead = await Lead.findOne({ call_sid: callSid }).lean();
+            organizationId = orphanLead?.organizationId || 'org_master';
+        }
 
         const isCompleted = callStatus === 'completed';
         const finalCallStatus = isCompleted ? CALL_STATUSES.COMPLETED : CALL_STATUSES.FAILED;
@@ -219,9 +267,23 @@ export async function handleStatusCallback(req, res) {
             if (isDnc) {
                 qualification = QUALIFICATIONS.NOT_INTERESTED;
                 leadScore = 0;
+            } else if (isCompleted) {
+                // Bug fix: Only mark Interested when call genuinely completed AND
+                // no DNC signal. Use the lead score to determine actual qualification.
+                const scoreData = { qualification: QUALIFICATIONS.UNKNOWN, decisionMaker: true };
+                leadScore = calculateLeadScore(scoreData);
+                // Use score thresholds: 60+ = Interested, 30-59 = Follow Up, <30 = Unknown
+                if (leadScore >= 60) {
+                    qualification = QUALIFICATIONS.INTERESTED;
+                } else if (leadScore >= 30) {
+                    qualification = QUALIFICATIONS.FOLLOW_UP;
+                } else {
+                    qualification = QUALIFICATIONS.UNKNOWN;
+                }
             } else {
-                qualification = QUALIFICATIONS.INTERESTED;
-                leadScore = calculateLeadScore({ qualification, decisionMaker: true });
+                // Call didn't complete (busy, no-answer, failed)
+                qualification = QUALIFICATIONS.UNKNOWN;
+                leadScore = 0;
             }
 
             await Lead.updateOne(
@@ -252,22 +314,34 @@ export async function handleStatusCallback(req, res) {
         }
 
         // ─── Sync Campaign Counters ───────────────────────────────────────────
-        // Find the lead to get the campaign it belongs to (via agentId lookup)
         const updatedLead = await Lead.findOne({ call_sid: callSid, organizationId }).lean();
         if (updatedLead) {
-            // Find the active campaign for this agent in this org
+            // Bug fix: Also search 'completed' status — campaignQueue.js may have
+            // already marked the campaign completed before this webhook fired.
             const campaign = await Campaign.findOne({
                 organizationId,
                 agentId: updatedLead.agent_id,
-                status: { $in: ['running', 'queued'] }
-            });
+                status: { $in: [CAMPAIGN_STATUSES.RUNNING, CAMPAIGN_STATUSES.QUEUED, CAMPAIGN_STATUSES.COMPLETED] }
+            }).sort({ createdAt: -1 }); // Most recent campaign for this agent
 
             if (campaign) {
-                // Decrement calling, increment completed or failed
-                const callIncrement = isCompleted ? { $inc: { calling: -1, completed: 1 } } : { $inc: { calling: -1, failed: 1 } };
-                await Campaign.updateOne({ _id: campaign._id }, callIncrement);
+                // Build the counter update: decrement calling, increment completed/failed
+                // Also increment interested or dnc counters properly
+                const counterUpdate = { $inc: { calling: -1 } };
+                if (isCompleted) {
+                    counterUpdate.$inc.completed = 1;
+                } else {
+                    counterUpdate.$inc.failed = 1;
+                }
+                if (isDnc) {
+                    counterUpdate.$inc.dnc = 1;
+                } else if (qualification === QUALIFICATIONS.INTERESTED) {
+                    counterUpdate.$inc.interested = 1;
+                }
 
-                // Reload and check if all leads are done (pending=0 AND calling=0)
+                await Campaign.updateOne({ _id: campaign._id }, counterUpdate);
+
+                // Reload and check if all leads are done (pending=0 AND calling<=0)
                 const refreshed = await Campaign.findOne({ _id: campaign._id }).lean();
                 const totalProcessed = (refreshed.completed || 0) + (refreshed.failed || 0);
                 const totalExpected = refreshed.totalLeads || 0;
@@ -278,7 +352,7 @@ export async function handleStatusCallback(req, res) {
                         { _id: campaign._id },
                         { status: CAMPAIGN_STATUSES.COMPLETED, completedAt: new Date() }
                     );
-                    console.log(`✓ Campaign ${campaign.id} marked COMPLETED.`);
+                    console.log(`✓ Campaign ${campaign.id} marked COMPLETED (${totalProcessed}/${totalExpected} calls settled).`);
                 }
             }
         }
@@ -291,4 +365,3 @@ export async function handleStatusCallback(req, res) {
         res.status(200).send('ok');
     }
 }
-
