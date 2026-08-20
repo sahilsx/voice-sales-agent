@@ -10,7 +10,7 @@ const LeadSchema = new mongoose.Schema({
     lead_interest: { type: String, default: 'Sales Inquiry' },
     status: { type: String, default: CALL_STATUSES.INITIATED, index: true },
     qualification: { type: String, default: QUALIFICATIONS.UNKNOWN, index: true },
-    sentiment: { type: String, default: 'Pending' }, // Backward compatibility
+    sentiment: { type: String, default: 'Pending' },
     leadScore: { type: Number, default: 0, min: 0, max: 100 },
     confidence: { type: Number, default: 0, min: 0, max: 1 },
     intent: { type: String, default: 'discovery' },

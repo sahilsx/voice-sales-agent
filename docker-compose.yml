@@ -20,3 +20,16 @@ services:
     ports:
       - "6379:6379"
     restart: always
+
+  pipecat:
+    build: ./pipecat-service
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    environment:
+      - NODE_API_URL=http://app:3000
+    depends_on:
+      - app
+    restart: always
+

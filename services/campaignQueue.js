@@ -75,9 +75,15 @@ class InMemoryCampaignQueue {
                         return;
                     }
 
+                    const voiceEndpoint = env.USE_PIPECAT_FOR_CALLS ? 'voice-stream' : 'voice';
+                    if (!publicTunnelUrl || publicTunnelUrl.includes('localhost') || publicTunnelUrl.includes('127.0.0.1')) {
+                        console.error('❌ Cannot place call: Public Ngrok Security Tunnel is not online. Twilio requires a public URL (https://...).');
+                        throw new Error('Public Ngrok Security Tunnel is not active. Please verify NGROK_AUTHTOKEN in .env.');
+                    }
+
                     const call = await placeOutboundCall({
                         to: freshLead.lead_phone,
-                        url: `${publicTunnelUrl}/voice?lead_id=${freshLead.id}&agent_id=${campaign.agentId}&org_id=${organizationId}`,
+                        url: `${publicTunnelUrl}/${voiceEndpoint}?lead_id=${freshLead.id}&agent_id=${campaign.agentId}&org_id=${organizationId}`,
                         statusCallback: `${publicTunnelUrl}/status`
                     });
 

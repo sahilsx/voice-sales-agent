@@ -6,11 +6,11 @@ const CampaignSchema = new mongoose.Schema({
     organizationId: { type: String, required: true, index: true },
     name: { type: String, required: true },
     agentId: { type: String, required: true, index: true },
-    status: { 
-        type: String, 
-        enum: Object.values(CAMPAIGN_STATUSES), 
+    status: {
+        type: String,
+        enum: Object.values(CAMPAIGN_STATUSES),
         default: CAMPAIGN_STATUSES.DRAFT,
-        index: true 
+        index: true
     },
     totalLeads: { type: Number, default: 0 },
     pending: { type: Number, default: 0 },

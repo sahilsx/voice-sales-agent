@@ -21,10 +21,11 @@ export function buildGatherTwiml({ respondUrl, sayText, audioUrl, goodbyeText })
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Gather input="speech" action="${escapeXml(respondUrl)}" method="POST" speechTimeout="0.8" speechModel="phone_call" hints="Sahil, demo, menu, mobile, website, reservations, Instagram, schedule, yes, no, thanks, bye, 10 AM, 2 PM" language="en-US">
+    <Gather input="speech" action="${escapeXml(respondUrl)}" method="POST" timeout="4" speechTimeout="1.2" speechModel="phone_call" hints="Sahil, demo, menu, mobile, website, reservations, Instagram, schedule, yes, no, thanks, bye, 10 AM, 2 PM" language="en-US">
         ${sayOrPlay}
     </Gather>
-    <Say voice="Polly.Joanna">${escapeXml(goodbyeText)}</Say>
+    <Say voice="Polly.Joanna">${escapeXml(goodbyeText || 'Thank you for your time. Goodbye.')}</Say>
+    <Hangup/>
 </Response>`;
 }
 
@@ -32,6 +33,33 @@ export function buildErrorTwiml(message) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Joanna">${escapeXml(message)}</Say>
+    <Hangup/>
+</Response>`;
+}
+
+export function buildGoodbyeTwiml({ sayText, audioUrl }) {
+    const sayOrPlay = audioUrl
+        ? `<Play>${escapeXml(audioUrl)}</Play>`
+        : `<Say voice="Polly.Joanna">${escapeXml(sayText)}</Say>`;
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    ${sayOrPlay}
+    <Hangup/>
+</Response>`;
+}
+
+export function buildMediaStreamTwiml({ streamUrl, callSid, agentId, leadId, orgId }) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect>
+        <Stream url="${escapeXml(streamUrl)}">
+            <Parameter name="callSid" value="${escapeXml(callSid || '')}" />
+            <Parameter name="agentId" value="${escapeXml(agentId || '')}" />
+            <Parameter name="leadId" value="${escapeXml(leadId || '')}" />
+            <Parameter name="orgId" value="${escapeXml(orgId || '')}" />
+        </Stream>
+    </Connect>
 </Response>`;
 }
 

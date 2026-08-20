@@ -60,7 +60,6 @@ export async function createUser(req, res, next) {
                 error: { code: ERROR_CODES.FORBIDDEN, message: 'Organization Admins cannot create Super Admin accounts.' }
             });
         }
-
         if (!name || !email || !password) {
             return res.status(400).json({
                 success: false,

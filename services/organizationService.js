@@ -9,5 +9,20 @@ import Organization from '../models/Organization.js';
  */
 export const findOrgByCustomId = async (customId) => {
     if (!customId) return null;
-    return await Organization.findOne({ id: customId }).lean();
+    let org = await Organization.findOne({ id: customId }).lean();
+    if (!org && customId === 'org_master') {
+        try {
+            org = await Organization.create({
+                id: 'org_master',
+                name: 'Master Enterprise',
+                slug: 'master-enterprise',
+                status: 'Active',
+                limits: { maxConcurrentCalls: 5, dailyCallCap: 1000 }
+            });
+            if (org && org.toObject) org = org.toObject();
+        } catch (_) {
+            org = await Organization.findOne({ id: 'org_master' }).lean();
+        }
+    }
+    return org;
 };

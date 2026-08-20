@@ -16,29 +16,42 @@ async function queryGroqRaw(messages) {
     if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
     const start = Date.now();
     const systemPrompt = messages[0];
-    // Keep last 12 turns (was 4) so the AI remembers what the customer already answered
-    const recentHistory = messages.slice(1).slice(-12);
+    const recentHistory = messages.slice(1).slice(-8);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: pruned,
-            max_tokens: 60,       // was 45 — prevents mid-sentence cutoffs that restart topics
-            temperature: 0.7      // was 0.5 — reduces repetitive loop behaviour
-        })
-    });
+    const modelsToTry = ['groq/compound-mini', 'groq/compound', 'openai/gpt-oss-120b'];
+    for (const model of modelsToTry) {
+        try {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${env.GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: pruned,
+                    max_tokens: 45,
+                    temperature: 0.6
+                })
+            });
 
-    if (!response.ok) throw new Error(`Groq API status ${response.status}`);
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content?.trim();
-    console.log(`   [Groq AI] Latency: ${Date.now() - start}ms -> "${reply}"`);
-    return reply;
+            if (response.ok) {
+                const data = await response.json();
+                const reply = data.choices?.[0]?.message?.content?.trim();
+                if (reply) {
+                    console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
+                    return reply;
+                }
+            } else {
+                console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
+            }
+        } catch (err) {
+            console.warn(`   [Groq Notice] Model ${model} error: ${err.message}`);
+        }
+    }
+
+    throw new Error('All Groq API models failed or returned 404');
 }
 
 async function queryOllamaRaw(messages) {

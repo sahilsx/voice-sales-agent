@@ -27,7 +27,16 @@ const envSchema = z.object({
     OLLAMA_URL: z.string().default('http://localhost:11434/api/chat'),
 
     REDIS_HOST: z.string().default('127.0.0.1'),
-    REDIS_PORT: z.string().default('6379').transform(val => parseInt(val, 10))
+    REDIS_PORT: z.string().default('6379').transform(val => parseInt(val, 10)),
+
+    // Pipecat Voice Orchestration & Internal Security
+    INTERNAL_API_KEY: z.string().default('internal_secret_key_123'),
+    PIPECAT_SERVICE_URL: z.string().optional(),
+    DEEPGRAM_API_KEY: z.string().optional(),
+    USE_PIPECAT_FOR_CALLS: z.string().optional().transform(val => val === 'true'),
+
+    // Production Custom Public URL (skips Ngrok when set)
+    PUBLIC_TUNNEL_URL: z.string().optional()
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

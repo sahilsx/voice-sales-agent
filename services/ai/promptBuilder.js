@@ -39,6 +39,7 @@ CLOSING & DEAL SIGNALS:
 14. Buying signal phrases to watch for: "interested," "how much," "when can we," "send me," "let's do it," "sure," "okay," "sounds good." — When you hear these, pivot to the CTA.
 15. Do NOT keep pitching when the customer is ready. Just confirm the next step (email/SMS/callback time).
 16. The goal is a closed deal or a booked next step, not a complete list of answered discovery questions.
+17. CALL TERMINATION RULE ([END_CALL]): ONLY append [END_CALL] at the end of your response AFTER the customer has explicitly confirmed their contact info/meeting time, or if they said goodbye ("bye", "stop calling", "cancel", "talk later"). NEVER append [END_CALL] while you are asking a question or waiting for the customer to make a choice.
 `;
 }
 

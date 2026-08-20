@@ -137,3 +137,28 @@ export async function getPreviousCallTranscript(leadId, organizationId) {
         return null;
     }
 }
+
+import mongoose from 'mongoose';
+
+/**
+ * Finds a lead by custom string ID, Mongo _id, or phone number.
+ * Supports organization isolation with fallback to global matching.
+ */
+export async function findLeadByIdOrPhone(identifier, organizationId = null) {
+    if (!identifier) return null;
+    const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
+    const query = {
+        $or: [
+            { id: identifier },
+            { lead_phone: identifier },
+            ...(isObjectId ? [{ _id: identifier }] : [])
+        ]
+    };
+
+    if (organizationId) {
+        let lead = await Lead.findOne({ ...query, organizationId }).lean();
+        if (lead) return lead;
+    }
+
+    return await Lead.findOne(query).lean();
+}

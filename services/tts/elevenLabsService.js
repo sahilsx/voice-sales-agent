@@ -19,7 +19,7 @@ export async function speakWithElevenLabs(text, publicTunnelUrl, voiceIdOverride
     const start = Date.now();
 
     try {
-        const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?optimize_streaming_latency=4`, {
             method: 'POST',
             headers: {
                 'xi-api-key': env.ELEVENLABS_API_KEY,
@@ -29,7 +29,7 @@ export async function speakWithElevenLabs(text, publicTunnelUrl, voiceIdOverride
             body: JSON.stringify({
                 text,
                 model_id: 'eleven_turbo_v2_5',
-                voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                voice_settings: { stability: 0.3, similarity_boost: 0.75 }
             })
         });
 

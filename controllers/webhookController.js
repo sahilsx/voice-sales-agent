@@ -4,11 +4,12 @@ import CallLog from '../models/CallLog.js';
 import Campaign from '../models/Campaign.js';
 import { buildSystemPrompt, buildFollowUpSystemPrompt } from '../services/ai/promptBuilder.js';
 import { queryLLM } from '../services/ai/conversation.js';
-import { detectDoNotCall, parseStructuredAiOutput, calculateLeadScore, analyzeCallQualification } from '../services/ai/qualification.js';
-import { buildGatherTwiml, buildErrorTwiml } from '../services/telephony/twilioService.js';
+import { detectDoNotCall, detectCallEnd, parseStructuredAiOutput, calculateLeadScore, analyzeCallQualification } from '../services/ai/qualification.js';
+import { buildGatherTwiml, buildGoodbyeTwiml, buildErrorTwiml, buildMediaStreamTwiml } from '../services/telephony/twilioService.js';
 import { speakWithElevenLabs } from '../services/tts/elevenLabsService.js';
 import { CALL_STATUSES, QUALIFICATIONS, COST_RATES, CAMPAIGN_STATUSES } from '../config/constants.js';
 import { getPreviousCallTranscript } from '../services/leadService.js';
+import { env } from '../config/env.js';
 
 const activeSessions = new Map();
 const processedEvents = new Set();
@@ -45,6 +46,9 @@ export async function handleVoiceConnect(req, res) {
 
         let lead = await Lead.findOne({ id: leadId, organizationId }).lean();
         if (!lead) {
+            lead = await Lead.findOne({ id: leadId }).lean();
+        }
+        if (!lead) {
             lead = { id: leadId, lead_name: 'Customer', lead_interest: 'our services', doNotCall: false };
         }
 
@@ -54,6 +58,9 @@ export async function handleVoiceConnect(req, res) {
         let previousCall = null;
         if (isFollowUp && lead.id) {
             previousCall = await getPreviousCallTranscript(lead.id, organizationId);
+            if (!previousCall && lead.organizationId) {
+                previousCall = await getPreviousCallTranscript(lead.id, lead.organizationId);
+            }
             if (previousCall) {
                 console.log(`[Follow-Up] Loaded prior transcript for Lead ${lead.id} (${previousCall.transcript.length} turns from ${previousCall.callDate})`);
             } else {
@@ -170,6 +177,7 @@ export async function handleCustomerRespond(req, res) {
             totalLlmLatency: 0,
             totalTtsLatency: 0
         };
+        activeSessions.set(callSid, session);
 
         let aiSpeech = '';
         const llmStart = Date.now();
@@ -194,6 +202,15 @@ export async function handleCustomerRespond(req, res) {
                     { id: session.lead.id, organizationId: session.organizationId },
                     { doNotCall: true, qualification: QUALIFICATIONS.NOT_INTERESTED, leadScore: 0 }
                 );
+            }
+        }
+
+        // Evaluate if AI output or DNC state signals call termination
+        const { shouldHangup, cleanedSpeech } = detectCallEnd(aiSpeech, session.history, isDnc);
+        if (cleanedSpeech !== undefined && cleanedSpeech !== aiSpeech) {
+            aiSpeech = cleanedSpeech;
+            if (session.history.length > 0 && session.history[session.history.length - 1].role === 'assistant') {
+                session.history[session.history.length - 1].content = cleanedSpeech;
             }
         }
 
@@ -246,12 +263,21 @@ export async function handleCustomerRespond(req, res) {
             { upsert: true, returnDocument: 'after' }
         );
 
-        const twiml = buildGatherTwiml({
-            respondUrl: `${publicTunnelUrl}/respond`,
-            sayText: aiSpeech,
-            audioUrl,
-            goodbyeText: 'Thank you for speaking with us today. Have a great day!'
-        });
+        let twiml;
+        if (shouldHangup) {
+            console.log(`🏁 [Agent Call Termination] CallSid: ${callSid} hanging up gracefully.`);
+            twiml = buildGoodbyeTwiml({
+                sayText: aiSpeech,
+                audioUrl
+            });
+        } else {
+            twiml = buildGatherTwiml({
+                respondUrl: `${publicTunnelUrl}/respond`,
+                sayText: aiSpeech,
+                audioUrl,
+                goodbyeText: 'Thank you for speaking with us today. Have a great day!'
+            });
+        }
 
         res.type('text/xml').status(200).send(twiml);
     } catch (err) {
@@ -379,3 +405,41 @@ export async function handleStatusCallback(req, res) {
         res.status(200).send('ok');
     }
 }
+
+export async function handleVoiceStream(req, res) {
+    try {
+        const callSid = req.body.CallSid || `CA_${Date.now()}`;
+        const leadId = req.query.lead_id;
+        const agentId = req.query.agent_id;
+        const organizationId = req.query.org_id || 'org_master';
+
+        console.log(`\n=====================================================`);
+        console.log(`📍 [STEP 1] Twilio HTTP Webhook Hit: /voice-stream`);
+        console.log(`   CallSid: ${callSid} | LeadId: ${leadId} | AgentId: ${agentId}`);
+
+        const publicTunnelUrl = req.app.get('publicTunnelUrl') || `${req.protocol}://${req.get('host')}`;
+        let streamUrl = env.PIPECAT_SERVICE_URL;
+
+        if (!streamUrl || streamUrl.includes('localhost') || streamUrl.includes('127.0.0.1')) {
+            const wsUrl = publicTunnelUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
+            streamUrl = `${wsUrl}/ws/twilio`;
+        }
+
+        console.log(`   [STEP 1] Constructed Stream WebSocket URL: ${streamUrl}`);
+
+        const twiml = buildMediaStreamTwiml({
+            streamUrl,
+            callSid,
+            agentId,
+            leadId,
+            orgId: organizationId
+        });
+
+        console.log(`✓ [STEP 1] Returning TwiML <Connect><Stream> to Twilio for CallSid ${callSid}`);
+        res.type('text/xml').status(200).send(twiml);
+    } catch (err) {
+        console.error('❌ [ERROR] /voice-stream handler:', err);
+        res.type('text/xml').status(200).send(buildErrorTwiml("Sorry, technical issue initializing real-time voice pipeline. Goodbye."));
+    }
+}
+

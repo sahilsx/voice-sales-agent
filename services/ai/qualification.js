@@ -49,6 +49,36 @@ export function detectDoNotCall(history = []) {
     return DNC_PHRASES.some(phrase => fullText.includes(phrase));
 }
 
+const CALL_END_PHRASES = [
+    "[end_call]",
+    "goodbye",
+    "have a great day",
+    "have a good day",
+    "have a good one",
+    "have a great rest of your day",
+    "talk to you soon",
+    "thanks for your time",
+    "take care, bye",
+    "bye for now"
+];
+
+export function detectCallEnd(aiSpeech = '', history = [], isDnc = false) {
+    const speechLower = (aiSpeech || '').toLowerCase();
+    const hasEndTag = speechLower.includes('[end_call]');
+    const cleanedSpeech = (aiSpeech || '').replace(/\[end_call\]/gi, '').trim();
+
+    if (isDnc || hasEndTag) {
+        return { shouldHangup: true, cleanedSpeech };
+    }
+
+    const matchedClosingPhrase = CALL_END_PHRASES.some(phrase => speechLower.includes(phrase));
+    if (matchedClosingPhrase) {
+        return { shouldHangup: true, cleanedSpeech };
+    }
+
+    return { shouldHangup: false, cleanedSpeech };
+}
+
 export function parseStructuredAiOutput(rawJsonText) {
     try {
         let cleaned = rawJsonText.trim();
