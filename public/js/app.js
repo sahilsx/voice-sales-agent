@@ -301,7 +301,7 @@ function switchTab(tabId, targetEl = null) {
     if (tabId === 'audit-logs') loadAuditLogs();
     if (tabId === 'org-users') loadOrgUsers();
     if (tabId === 'agents') loadAgents();
-    if (tabId === 'leads') loadLeads();
+    if (tabId === 'leads') { loadAgents(); loadLeads(); }
     if (tabId === 'campaigns') { loadAgents(); loadCampaigns(); }
     if (tabId === 'logs') loadLogs();
 }
@@ -882,6 +882,7 @@ window.handleFileSelect = handleFileSelect;
 // Upload Excel Form
 document.getElementById('upload-form').onsubmit = async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
     const fileInput = document.getElementById('file-input');
     const agentSelect = document.getElementById('upload-agent-select');
 
@@ -894,27 +895,33 @@ document.getElementById('upload-form').onsubmit = async (e) => {
         return;
     }
 
-    const formData = new FormData();
-    formData.append('agent_id', agentSelect.value);
-    formData.append('file', fileInput.files[0]);
+    setButtonLoading(btn, true, 'Uploading...');
+    try {
+        const formData = new FormData();
+        formData.append('agent_id', agentSelect.value);
+        formData.append('file', fileInput.files[0]);
 
-    showToast('Uploading and parsing leads...', 'info');
+        showToast('Uploading and parsing leads...', 'info');
 
-    const res = await authFetch('/api/leads/upload', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.success) {
-        const msg = data.data?.message || data.message || 'Leads uploaded successfully!';
-        showToast(msg, 'success');
-        switchTab('leads');
-    } else {
-        const err = data.error?.message || data.error || 'Upload failed';
-        showToast(err, 'error');
+        const res = await authFetch('/api/leads/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            const msg = data.data?.message || data.message || 'Leads uploaded successfully!';
+            showToast(msg, 'success');
+            switchTab('leads');
+        } else {
+            const err = data.error?.message || data.error || 'Upload failed';
+            showToast(err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 };
 
 // Manual Lead Form
 document.getElementById('manual-lead-form').onsubmit = async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
     const agentId = document.getElementById('manual-agent-select').value;
     const name = document.getElementById('manual-name').value.trim();
     const phone = document.getElementById('manual-phone').value.trim();
@@ -929,21 +936,26 @@ document.getElementById('manual-lead-form').onsubmit = async (e) => {
         return;
     }
 
-    const payload = { agent_id: agentId, lead_name: name, lead_phone: phone, lead_interest: interest };
+    setButtonLoading(btn, true, 'Adding Lead...');
+    try {
+        const payload = { agent_id: agentId, lead_name: name, lead_phone: phone, lead_interest: interest };
 
-    const res = await authFetch('/api/leads/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success) {
-        showToast(`Lead ${escapeHtml(name)} added successfully!`, 'success');
-        document.getElementById('manual-lead-form').reset();
-        loadLeads();
-    } else {
-        const err = data.error?.message || data.error || 'Failed to add lead';
-        showToast(err, 'error');
+        const res = await authFetch('/api/leads/manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Lead ${escapeHtml(name)} added successfully!`, 'success');
+            document.getElementById('manual-lead-form').reset();
+            loadLeads();
+        } else {
+            const err = data.error?.message || data.error || 'Failed to add lead';
+            showToast(err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 };
 
@@ -1169,7 +1181,8 @@ async function loadCampaigns() {
     updateDashboardMetrics();
 }
 
-async function startCampaign() {
+async function startCampaign(btnEl = null) {
+    const btn = btnEl || (event && event.currentTarget) || document.querySelector('#campaigns-tab button[onclick="startCampaign()"]');
     const agentId = document.getElementById('campaign-agent-select').value;
     const name = document.getElementById('campaign-name-input').value.trim() || 'AI Outbound Sales Outreach';
     const concurrency = parseInt(document.getElementById('campaign-concurrency-input').value, 10) || 5;
@@ -1178,20 +1191,26 @@ async function startCampaign() {
         showToast('Please select an agent to start campaign', 'warning');
         return;
     }
-    showToast('Launching AI Batch Campaign...', 'info');
-    const res = await authFetch('/api/campaigns/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, agent_id: agentId, concurrency })
-    });
-    const data = await res.json();
-    if (data.success) {
-        const msg = data.data?.message || data.message || 'Campaign started!';
-        showToast(msg, 'success');
-        loadCampaigns();
-    } else {
-        const err = data.error?.message || data.error || 'Campaign error';
-        showToast('Campaign Error: ' + err, 'error');
+
+    setButtonLoading(btn, true, 'Launching Campaign...');
+    try {
+        showToast('Launching AI Batch Campaign...', 'info');
+        const res = await authFetch('/api/campaigns/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, agent_id: agentId, concurrency })
+        });
+        const data = await res.json();
+        if (data.success) {
+            const msg = data.data?.message || data.message || 'Campaign started!';
+            showToast(msg, 'success');
+            loadCampaigns();
+        } else {
+            const err = data.error?.message || data.error || 'Campaign error';
+            showToast('Campaign Error: ' + err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
@@ -1388,6 +1407,7 @@ function closeAgentModal() {
 
 document.getElementById('agent-form').onsubmit = async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
     const name = document.getElementById('agent-name').value.trim();
     const company = document.getElementById('agent-company').value.trim();
     const firstMessage = document.getElementById('agent-first-message').value.trim();
@@ -1405,32 +1425,37 @@ document.getElementById('agent-form').onsubmit = async (e) => {
         return;
     }
 
-    const payload = {
-        id: document.getElementById('agent-id').value || null,
-        name,
-        company,
-        role_title: document.getElementById('agent-role-title').value.trim() || 'Sales Specialist',
-        first_message: firstMessage,
-        tone_style: document.getElementById('agent-tone').value.trim(),
-        call_goal: document.getElementById('agent-goal').value.trim(),
-        knowledge_base_context: document.getElementById('agent-kb').value.trim(),
-        voice_engine: document.getElementById('agent-voice-engine').value || 'elevenlabs',
-        voice_id: document.getElementById('agent-voice-id').value.trim()
-    };
+    setButtonLoading(btn, true, 'Saving Agent...');
+    try {
+        const payload = {
+            id: document.getElementById('agent-id').value || null,
+            name,
+            company,
+            role_title: document.getElementById('agent-role-title').value.trim() || 'Sales Specialist',
+            first_message: firstMessage,
+            tone_style: document.getElementById('agent-tone').value.trim(),
+            call_goal: document.getElementById('agent-goal').value.trim(),
+            knowledge_base_context: document.getElementById('agent-kb').value.trim(),
+            voice_engine: document.getElementById('agent-voice-engine').value || 'elevenlabs',
+            voice_id: document.getElementById('agent-voice-id').value.trim()
+        };
 
-    const res = await authFetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (data.success) {
-        showToast('AI Agent saved successfully!', 'success');
-        closeAgentModal();
-        loadAgents();
-    } else {
-        const err = data.error?.message || data.error || 'Failed to save agent';
-        showToast(err, 'error');
+        const res = await authFetch('/api/agents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('AI Sales Agent saved successfully!', 'success');
+            closeAgentModal();
+            loadAgents();
+        } else {
+            const err = data.error?.message || data.error || 'Failed to save agent';
+            showToast(err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 };
 
