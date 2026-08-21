@@ -190,7 +190,19 @@ async function startServer() {
 
         const tunnelResult = await establishNgrokTunnel(PORT);
         ngrokListener = tunnelResult.listener;
-        app.set('publicTunnelUrl', tunnelResult.publicUrl);
+        const publicUrl = tunnelResult.publicUrl;
+        app.set('publicTunnelUrl', publicUrl);
+
+        console.log(`📍 [Public Webhook URL for Twilio]: ${publicUrl}`);
+
+        if (!publicUrl || publicUrl.includes('localhost') || publicUrl.includes('127.0.0.1')) {
+            console.warn(`\n=====================================================================`);
+            console.warn(`⚠️ CRITICAL WARNING: Public URL is set to '${publicUrl}'!`);
+            console.warn(`   Twilio CANNOT reach localhost! Calls will fail with:`);
+            console.warn(`   "We could not reach your TwiML server"`);
+            console.warn(`   FIX: Set NGROK_AUTHTOKEN or PUBLIC_TUNNEL_URL in your .env file.`);
+            console.warn(`=====================================================================\n`);
+        }
     });
 
     // Proxy WebSocket upgrade connections (e.g. /ws/twilio) from Ngrok to Pipecat service (port 8765)

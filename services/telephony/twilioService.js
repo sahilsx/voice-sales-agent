@@ -68,6 +68,9 @@ export async function placeOutboundCall({ from, to, url, statusCallback }) {
         throw new Error('Twilio client is not initialized. Please verify TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in .env');
     }
 
+    console.log(`📍 [STEP 1] Twilio Outbound Call Triggered -> To: ${to}`);
+    console.log(`   [STEP 1] Twilio Webhook URL: ${url}`);
+
     const call = await twilioClient.calls.create({
         from: from || env.TWILIO_PHONE_NUMBER,
         to,
