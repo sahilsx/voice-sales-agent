@@ -65,10 +65,13 @@ export async function triggerSingleLeadCall(req, res, next) {
             });
         }
 
+        const skipNgrokWarning = publicTunnelUrl.includes('ngrok') ? '&ngrok-skip-browser-warning=true' : '';
+        const skipNgrokStatusParam = publicTunnelUrl.includes('ngrok') ? '?ngrok-skip-browser-warning=true' : '';
+
         const call = await placeOutboundCall({
             to: lead.lead_phone,
-            url: `${publicTunnelUrl}/${voiceEndpoint}?lead_id=${lead.id}&agent_id=${lead.agent_id}&org_id=${req.organizationId}`,
-            statusCallback: `${publicTunnelUrl}/status`
+            url: `${publicTunnelUrl}/${voiceEndpoint}?lead_id=${lead.id}&agent_id=${lead.agent_id}&org_id=${req.organizationId}${skipNgrokWarning}`,
+            statusCallback: `${publicTunnelUrl}/status${skipNgrokStatusParam}`
         });
 
         await Lead.findOneAndUpdate(

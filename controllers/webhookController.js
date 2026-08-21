@@ -122,8 +122,10 @@ export async function handleVoiceConnect(req, res) {
             activeSessions.get(callSid).totalTtsLatency += ttsResult.latency;
         }
 
+        const skipNgrokParam = publicTunnelUrl.includes('ngrok') ? '?ngrok-skip-browser-warning=true' : '';
+
         const twiml = buildGatherTwiml({
-            respondUrl: `${publicTunnelUrl}/respond`,
+            respondUrl: `${publicTunnelUrl}/respond${skipNgrokParam}`,
             sayText: initialGreeting,
             audioUrl,
             goodbyeText: "I didn't hear a response. Thanks for your time! Have a great day."
@@ -272,7 +274,7 @@ export async function handleCustomerRespond(req, res) {
             });
         } else {
             twiml = buildGatherTwiml({
-                respondUrl: `${publicTunnelUrl}/respond`,
+                respondUrl: `${publicTunnelUrl}/respond${skipNgrokParam}`,
                 sayText: aiSpeech,
                 audioUrl,
                 goodbyeText: 'Thank you for speaking with us today. Have a great day!'
