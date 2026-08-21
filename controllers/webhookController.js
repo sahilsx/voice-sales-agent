@@ -17,6 +17,7 @@ const processedEvents = new Set();
 export async function handleVoiceConnect(req, res) {
     try {
         const callSid = req.body.CallSid || `CA_${Date.now()}`;
+        console.log(`📍 [STEP 1] Twilio Webhook Received: /voice | CallSid: ${callSid}`);
         const leadId = req.query.lead_id;
         const agentId = req.query.agent_id;
         const organizationId = req.query.org_id || 'org_master';
