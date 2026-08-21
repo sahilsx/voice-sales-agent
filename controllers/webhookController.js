@@ -266,6 +266,8 @@ export async function handleCustomerRespond(req, res) {
             { upsert: true, returnDocument: 'after' }
         );
 
+        const skipNgrokParam = publicTunnelUrl.includes('ngrok') ? '?ngrok-skip-browser-warning=true' : '';
+
         let twiml;
         if (shouldHangup) {
             console.log(`🏁 [Agent Call Termination] CallSid: ${callSid} hanging up gracefully.`);
