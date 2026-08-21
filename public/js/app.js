@@ -10,6 +10,72 @@ let auditPage = 1, auditTotalPages = 1, auditSearchQuery = '', auditSearchTimeou
 // Org Users Pagination
 let orgUsersPage = 1, orgUsersTotalPages = 1;
 
+// --- UI Loading & Double-Click Protection Helpers ---
+function setButtonLoading(btn, isLoading, customText = null) {
+    if (!btn) return;
+    if (typeof btn === 'string') btn = document.getElementById(btn);
+    if (!btn) return;
+
+    if (isLoading) {
+        if (!btn.dataset.originalHtml) {
+            btn.dataset.originalHtml = btn.innerHTML;
+        }
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+        const text = customText || 'Processing...';
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin" style="margin-right:6px;"></i> ${text}`;
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        if (btn.dataset.originalHtml) {
+            btn.innerHTML = btn.dataset.originalHtml;
+            delete btn.dataset.originalHtml;
+        }
+    }
+}
+
+function showTableLoading(tbodyId, colSpan = 7, message = 'Loading data...') {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="${colSpan}">
+                <div class="table-loading-box">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                    <div>${escapeHtml(message)}</div>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function showGridLoading(gridId, message = 'Loading records...') {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.innerHTML = `
+        <div class="grid-loading-box">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+            <div>${escapeHtml(message)}</div>
+        </div>
+    `;
+}
+
+// Global double-click guard for all buttons
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button, .btn');
+    if (btn) {
+        if (btn.disabled || btn.dataset.clicking === 'true') {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        }
+        btn.dataset.clicking = 'true';
+        setTimeout(() => {
+            delete btn.dataset.clicking;
+        }, 800);
+    }
+}, true);
+
 function updateAuthUI() {
     const authBar = document.getElementById('user-auth-bar');
     const navLinks = document.getElementById('main-nav-links');
@@ -893,6 +959,7 @@ let leadsPage = 1, leadsTotalPages = 1, leadsSearchQuery = '', leadsDncOnly = fa
 let logsPage = 1, logsTotalPages = 1;
 
 async function loadLeads() {
+    showTableLoading('leads-table-body', 7, 'Loading leads database...');
     const agentId = document.getElementById('filter-agent-leads').value;
     let url = `/api/leads?page=${leadsPage}&limit=25`;
     if (agentId) url += `&agent_id=${encodeURIComponent(agentId)}`;
@@ -915,6 +982,11 @@ async function loadLeads() {
     const tbody = document.getElementById('leads-table-body');
     tbody.innerHTML = '';
 
+    if (leadsList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2.5rem; color:var(--text-sub);">No leads found.</td></tr>';
+        return;
+    }
+
     leadsList.forEach(lead => {
         const date = new Date(lead.created_at || lead.createdAt).toLocaleDateString();
         const score = lead.leadScore || 0;
@@ -928,16 +1000,16 @@ async function loadLeads() {
                         <td>${date}</td>
                         <td>
                             <div style="display:flex; gap:0.4rem;">
-                                <button class="btn btn-success" style="padding:0.35rem 0.7rem; font-size:0.75rem;" onclick="callSingleLead('${lead.id}')">
+                                <button class="btn btn-success" style="padding:0.35rem 0.7rem; font-size:0.75rem;" onclick="callSingleLead('${lead.id}', this)">
                                     <i class="fa-solid fa-phone"></i> Call
                                 </button>
                                 <button class="btn btn-outline" style="padding:0.35rem 0.6rem; font-size:0.75rem;" onclick="viewLeadLogs('${lead.id}', '${escapeHtml(lead.lead_name)}')">
                                     <i class="fa-solid fa-clock-rotate-left"></i> Logs
                                 </button>
-                                <button class="btn btn-warning" style="padding:0.35rem 0.6rem; font-size:0.75rem;" onclick="toggleLeadDnc('${lead.id}', ${lead.doNotCall})">
+                                <button class="btn btn-warning" style="padding:0.35rem 0.6rem; font-size:0.75rem;" onclick="toggleLeadDnc('${lead.id}', ${lead.doNotCall}, this)">
                                     <i class="fa-solid ${lead.doNotCall ? 'fa-check' : 'fa-ban'}"></i> ${lead.doNotCall ? 'Allow' : 'DNC'}
                                 </button>
-                                <button class="btn btn-danger" style="padding:0.35rem 0.5rem; font-size:0.75rem;" onclick="deleteSingleLead('${lead.id}')">
+                                <button class="btn btn-danger" style="padding:0.35rem 0.5rem; font-size:0.75rem;" onclick="deleteSingleLead('${lead.id}', this)">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                             </div>
@@ -977,67 +1049,92 @@ function changeLeadsPage(delta) {
     loadLeads();
 }
 
-async function toggleLeadDnc(leadId, currentDnc) {
-    const newDnc = !currentDnc;
-    showToast(`Updating DNC status...`, 'info');
-    const res = await authFetch(`/api/leads/${leadId}/dnc`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doNotCall: newDnc })
-    });
-    const data = await res.json();
-    if (data.success) {
-        showToast(`Lead DNC updated to ${newDnc ? 'TRUE' : 'FALSE'}`, 'success');
-        loadLeads();
-    } else {
-        showToast(data.error?.message || data.error || 'Failed to update DNC', 'error');
+async function toggleLeadDnc(leadId, currentDnc, btnEl = null) {
+    const btn = btnEl || (event && event.currentTarget);
+    setButtonLoading(btn, true, 'Updating...');
+    try {
+        const newDnc = !currentDnc;
+        showToast(`Updating DNC status...`, 'info');
+        const res = await authFetch(`/api/leads/${leadId}/dnc`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doNotCall: newDnc })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Lead DNC updated to ${newDnc ? 'TRUE' : 'FALSE'}`, 'success');
+            loadLeads();
+        } else {
+            showToast(data.error?.message || data.error || 'Failed to update DNC', 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
-async function deleteSingleLead(leadId) {
-    showToast('Deleting lead...', 'warning');
-    const res = await authFetch(`/api/leads/${leadId}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-        showToast('Lead deleted', 'success');
-        loadLeads();
-    } else {
-        const err = data.error?.message || data.error || 'Failed to delete lead';
-        showToast(err, 'error');
+async function deleteSingleLead(leadId, btnEl = null) {
+    const btn = btnEl || (event && event.currentTarget);
+    setButtonLoading(btn, true, 'Deleting...');
+    try {
+        showToast('Deleting lead...', 'warning');
+        const res = await authFetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Lead deleted', 'success');
+            loadLeads();
+        } else {
+            const err = data.error?.message || data.error || 'Failed to delete lead';
+            showToast(err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
-async function clearAllLeads() {
-    const agentId = document.getElementById('filter-agent-leads').value;
-    showToast('Clearing leads...', 'warning');
-    const url = agentId ? `/api/leads?agent_id=${agentId}` : '/api/leads';
-    const res = await authFetch(url, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-        showToast('All leads cleared!', 'success');
-        loadLeads();
-    } else {
-        const err = data.error?.message || data.error || 'Failed to clear leads';
-        showToast(err, 'error');
+async function clearAllLeads(btnEl = null) {
+    const btn = btnEl || (event && event.currentTarget);
+    setButtonLoading(btn, true, 'Clearing...');
+    try {
+        const agentId = document.getElementById('filter-agent-leads').value;
+        showToast('Clearing leads...', 'warning');
+        const url = agentId ? `/api/leads?agent_id=${agentId}` : '/api/leads';
+        const res = await authFetch(url, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('All leads cleared!', 'success');
+            loadLeads();
+        } else {
+            const err = data.error?.message || data.error || 'Failed to clear leads';
+            showToast(err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
-async function callSingleLead(leadId) {
-    showToast('Placing outbound call via Twilio...', 'info');
-    const res = await authFetch('/api/campaigns/trigger-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId })
-    });
-    const data = await res.json();
-    if (data.success) showToast('AI Voice Call Placed! Check transcripts & logs.', 'success');
-    else {
-        const err = data.error?.message || data.error || 'Call failed';
-        showToast('Call Error: ' + err, 'error');
+async function callSingleLead(leadId, btnEl = null) {
+    const btn = btnEl || (event && event.currentTarget);
+    setButtonLoading(btn, true, 'Calling...');
+    try {
+        showToast('Placing outbound call via Twilio...', 'info');
+        const res = await authFetch('/api/campaigns/trigger-lead', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lead_id: leadId })
+        });
+        const data = await res.json();
+        if (data.success) showToast('AI Voice Call Placed! Check transcripts & logs.', 'success');
+        else {
+            const err = data.error?.message || data.error || 'Call failed';
+            showToast('Call Error: ' + err, 'error');
+        }
+    } finally {
+        setButtonLoading(btn, false);
     }
 }
 
 async function loadCampaigns() {
+    showTableLoading('campaigns-table-body', 8, 'Loading campaigns...');
     const res = await authFetch('/api/campaigns');
     const result = await res.json();
     if (!result.success) return;
@@ -1046,6 +1143,11 @@ async function loadCampaigns() {
     const tbody = document.getElementById('campaigns-table-body');
     if (!tbody) return;
     tbody.innerHTML = '';
+
+    if (campaigns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:2.5rem; color:var(--text-sub);">No active or past campaigns found.</td></tr>';
+        return;
+    }
 
     campaigns.forEach(c => {
         const callingPending = `${c.calling || 0} / ${c.pending || 0}`;
@@ -1113,6 +1215,7 @@ function clearLogsLeadFilter() {
 window.clearLogsLeadFilter = clearLogsLeadFilter;
 
 async function loadLogs() {
+    showTableLoading('logs-table-body', 7, 'Loading call logs & transcripts...');
     let url = `/api/logs?page=${logsPage}&limit=25`;
     if (logsLeadFilter) url += `&lead_id=${encodeURIComponent(logsLeadFilter)}`;
 
@@ -1132,6 +1235,11 @@ async function loadLogs() {
     const tbody = document.getElementById('logs-table-body');
     tbody.innerHTML = '';
     window.logsStore.clear();
+
+    if (logsList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:2.5rem; color:var(--text-sub);">No call logs recorded yet.</td></tr>';
+        return;
+    }
 
     logsList.forEach(log => {
         const sid = log.callSid || log.call_sid;
@@ -1362,6 +1470,7 @@ async function deleteAgent(id) {
 }
 
 async function loadAgents() {
+    showGridLoading('agents-grid', 'Loading AI Sales Agents...');
     const res = await authFetch('/api/agents');
     const result = await res.json();
     if (!result.success) return;
