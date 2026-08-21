@@ -21,37 +21,45 @@ async function queryGroqRaw(messages) {
 
     const modelsToTry = ['groq/compound-mini', 'groq/compound', 'openai/gpt-oss-120b'];
     for (const model of modelsToTry) {
-        try {
-            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${env.GROQ_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: pruned,
-                    max_tokens: 45,
-                    temperature: 0.6
-                })
-            });
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${env.GROQ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: pruned,
+                        max_tokens: 45,
+                        temperature: 0.6
+                    })
+                });
 
-            if (response.ok) {
-                const data = await response.json();
-                const reply = data.choices?.[0]?.message?.content?.trim();
-                if (reply) {
-                    console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
-                    return reply;
+                if (response.ok) {
+                    const data = await response.json();
+                    let reply = data.choices?.[0]?.message?.content?.trim();
+                    if (reply) {
+                        reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                        console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
+                        return reply;
+                    }
+                } else if (response.status === 429) {
+                    console.warn(`   [Groq Notice] Model ${model} rate limited (429). Retrying in 300ms (attempt ${attempt}/2)...`);
+                    await new Promise(r => setTimeout(r, 300));
+                } else {
+                    console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
+                    break;
                 }
-            } else {
-                console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
+            } catch (err) {
+                console.warn(`   [Groq Notice] Model ${model} error: ${err.message}`);
+                break;
             }
-        } catch (err) {
-            console.warn(`   [Groq Notice] Model ${model} error: ${err.message}`);
         }
     }
 
-    throw new Error('All Groq API models failed or returned 404');
+    throw new Error('All Groq API models failed or rate limited');
 }
 
 async function queryOllamaRaw(messages) {
