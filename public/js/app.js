@@ -60,10 +60,10 @@ function showGridLoading(gridId, message = 'Loading records...') {
     `;
 }
 
-// Global double-click guard for all buttons
+// Global double-click guard for action/submit buttons (skips utility toggles)
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('button, .btn');
-    if (btn) {
+    if (btn && !btn.classList.contains('no-debounce') && btn.id !== 'hamburger-btn') {
         if (btn.disabled || btn.dataset.clicking === 'true') {
             e.preventDefault();
             e.stopPropagation();
@@ -280,7 +280,7 @@ function switchTab(tabId, targetEl = null) {
     if (navLinksEl && navLinksEl.classList.contains('mobile-active')) {
         navLinksEl.classList.remove('mobile-active');
         if (authBarEl) authBarEl.classList.remove('mobile-active');
-        if (hamburgerBtnEl) hamburgerBtnEl.innerHTML = '<i class="fa-solid fa-bars"></i>';
+        if (hamburgerBtnEl) hamburgerBtnEl.classList.remove('active');
     }
 
     document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
@@ -1569,17 +1569,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     const authBar = document.getElementById('user-auth-bar');
     if (hamburgerBtn && navLinks) {
         hamburgerBtn.addEventListener('click', (e) => {
+            e.preventDefault();
             e.stopPropagation();
             const isOpen = navLinks.classList.toggle('mobile-active');
             if (authBar) authBar.classList.toggle('mobile-active', isOpen);
-            hamburgerBtn.innerHTML = isOpen ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-bars"></i>';
+            hamburgerBtn.classList.toggle('active', isOpen);
         });
 
         document.addEventListener('click', (e) => {
-            if (navLinks.classList.contains('mobile-active') && !navLinks.contains(e.target) && !hamburgerBtn.contains(e.target)) {
-                navLinks.classList.remove('mobile-active');
-                if (authBar) authBar.classList.remove('mobile-active');
-                hamburgerBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+            const path = e.composedPath ? e.composedPath() : [];
+            const clickedInsideBtn = path.includes(hamburgerBtn) || hamburgerBtn.contains(e.target);
+            const clickedInsideNav = path.includes(navLinks) || navLinks.contains(e.target);
+            const clickedInsideAuth = authBar && (path.includes(authBar) || authBar.contains(e.target));
+
+            if (!clickedInsideBtn && !clickedInsideNav && !clickedInsideAuth) {
+                if (navLinks.classList.contains('mobile-active')) {
+                    navLinks.classList.remove('mobile-active');
+                    if (authBar) authBar.classList.remove('mobile-active');
+                    hamburgerBtn.classList.remove('active');
+                }
             }
         });
     }
