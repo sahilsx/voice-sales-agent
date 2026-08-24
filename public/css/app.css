@@ -541,15 +541,18 @@ th {
 /* --- TABLET & MOBILE NAVBAR COLLAPSE (<= 992px) --- */
 @media (max-width: 992px) {
     header {
-        padding: 1rem 1.25rem;
+        padding: 0.85rem 1.25rem;
         flex-wrap: wrap;
         position: sticky;
         top: 0;
         z-index: 200;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .hamburger-btn {
         display: flex;
+        order: 2;
     }
 
     .nav-links {
@@ -558,17 +561,17 @@ th {
         flex-direction: column;
         gap: 0.35rem;
         padding: 0.75rem;
-        background: rgba(13, 17, 26, 0.96);
-        backdrop-filter: blur(20px);
+        background: rgba(13, 17, 26, 0.98);
+        backdrop-filter: blur(24px);
         border-radius: 14px;
         border: 1px solid var(--card-border);
-        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
-        margin-top: 0.5rem;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+        margin-top: 0.65rem;
         order: 3;
     }
 
     .nav-links.mobile-active {
-        display: flex;
+        display: flex !important;
         animation: fadeInDown 0.22s ease forwards;
     }
 
@@ -589,10 +592,30 @@ th {
         justify-content: flex-start;
         padding: 0.75rem 1rem;
         font-size: 0.95rem;
+        border-radius: 10px;
     }
 
+    /* Auth bar is hidden on header top bar when menu is closed; shows inside mobile drawer below nav links */
     .user-auth-bar {
-        margin-left: auto;
+        display: none !important;
+        width: 100%;
+        margin-top: 0.5rem;
+        padding: 0.75rem;
+        background: rgba(13, 17, 26, 0.98);
+        backdrop-filter: blur(24px);
+        border-radius: 14px;
+        border: 1px solid var(--card-border);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+        order: 4;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .user-auth-bar.mobile-active {
+        display: flex !important;
+        animation: fadeInDown 0.22s ease forwards;
     }
 }
 
