@@ -21,10 +21,13 @@
         <div class="logo">
             <i class="fa-solid fa-headset"></i> VoiceAI Enterprise
         </div>
+        <button id="hamburger-btn" class="hamburger-btn" aria-label="Toggle Navigation">
+            <i class="fa-solid fa-bars"></i>
+        </button>
         <nav id="main-nav-links" class="nav-links">
             <!-- Nav buttons rendered dynamically based on user role -->
         </nav>
-        <div id="user-auth-bar" style="display:flex; align-items:center; gap:0.75rem;">
+        <div id="user-auth-bar" class="user-auth-bar" style="display:flex; align-items:center; gap:0.75rem;">
             <!-- User auth info rendered dynamically -->
         </div>
     </header>
@@ -112,7 +115,7 @@
             <div class="glass-card">
                 <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
                     <div class="card-title"><i class="fa-solid fa-sitemap"></i> Organization Management</div>
-                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                    <div class="header-actions">
                         <input type="text" id="search-orgs-input" class="form-control" style="width: 220px;"
                             placeholder="Search name, email..." onkeyup="onOrgsSearchChange()">
                         <select id="filter-orgs-status" class="form-control" style="width: 150px;"
@@ -152,8 +155,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div
-                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                <div class="pagination-bar">
                     <div id="orgs-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
                     </div>
                     <div style="display:flex; gap:0.5rem;">
@@ -173,7 +175,12 @@
             <div class="glass-card">
                 <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
                     <div class="card-title"><i class="fa-solid fa-users-gear"></i> Platform User Directory</div>
-                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+        <!-- SUPER ADMIN TAB 3: PLATFORM USERS -->
+        <div id="tab-super-users" class="tab-view">
+            <div class="glass-card">
+                <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+                    <div class="card-title"><i class="fa-solid fa-users-gear"></i> Platform User Directory</div>
+                    <div class="header-actions">
                         <input type="text" id="search-users-input" class="form-control" style="width: 200px;"
                             placeholder="Search name, email..." onkeyup="onUsersSearchChange()">
                         <select id="filter-users-org" class="form-control" style="width: 180px;"
@@ -215,8 +222,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div
-                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                <div class="pagination-bar">
                     <div id="users-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
                     </div>
                     <div style="display:flex; gap:0.5rem;">
@@ -256,8 +262,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div
-                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                <div class="pagination-bar">
                     <div id="audit-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
                     </div>
                     <div style="display:flex; gap:0.5rem;">
@@ -297,7 +302,15 @@
                         </tbody>
                     </table>
                 </div>
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:1rem; flex-wrap:wrap; gap:0.5rem;">
+                <div class="pagination-bar">
+                    <span id="org-users-pagination-info" style="font-size:0.8rem; color:var(--text-sub);"></span>
+                    <div style="display:flex; gap:0.4rem;">
+                        <button id="org-users-prev-btn" class="btn btn-primary" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="changeOrgUsersPage(-1)" disabled><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                        <button id="org-users-next-btn" class="btn btn-primary" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="changeOrgUsersPage(1)" disabled>Next <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
                     <span id="org-users-pagination-info" style="font-size:0.8rem; color:var(--text-sub);"></span>
                     <div style="display:flex; gap:0.4rem;">
                         <button id="org-users-prev-btn" class="btn btn-primary" style="padding:0.3rem 0.8rem; font-size:0.8rem;" onclick="changeOrgUsersPage(-1)" disabled><i class="fa-solid fa-chevron-left"></i> Prev</button>
@@ -432,7 +445,7 @@
             <div class="glass-card">
                 <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
                     <div class="card-title"><i class="fa-solid fa-users"></i> Imported Leads Database</div>
-                    <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                    <div class="header-actions">
                         <input type="text" id="search-leads-input" class="form-control" style="width: 220px;"
                             placeholder="Search name, phone..." onkeyup="onLeadsSearchChange()">
                         <select id="filter-agent-leads" class="form-control" style="width: 180px;"
@@ -465,8 +478,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div
-                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                <div class="pagination-bar">
                     <div id="leads-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
                     </div>
                     <div style="display:flex; gap:0.5rem;">
@@ -588,8 +600,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div
-                    style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--card-border);">
+                <div class="pagination-bar">
                     <div id="logs-pagination-info" style="font-size:0.85rem; color:var(--text-sub);">Showing page 1
                     </div>
                     <div style="display:flex; gap:0.5rem;">
@@ -702,7 +713,7 @@
                 <div style="display:flex; flex-direction:column; gap:0.6rem; margin-top:1.5rem;">
                     <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;"><i
                             class="fa-solid fa-right-to-bracket"></i> Sign In</button>
-                    <div style="display:flex; gap:0.5rem;">
+                    <div class="quick-login-btn-group" style="display:flex; gap:0.5rem;">
                         <button type="button" class="btn btn-danger"
                             style="flex:1; justify-content:center; padding:0.5rem; font-size:0.8rem;"
                             onclick="quickLoginSuperAdmin()"><i class="fa-solid fa-crown"></i> Super Admin Quick

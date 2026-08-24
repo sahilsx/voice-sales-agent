@@ -273,6 +273,16 @@ function switchTab(tabId, targetEl = null) {
         location.hash = tabId;
     }
 
+    // Auto-close mobile navigation menu drawer when selecting a tab
+    const navLinksEl = document.getElementById('main-nav-links');
+    const authBarEl = document.getElementById('user-auth-bar');
+    const hamburgerBtnEl = document.getElementById('hamburger-btn');
+    if (navLinksEl && navLinksEl.classList.contains('mobile-active')) {
+        navLinksEl.classList.remove('mobile-active');
+        if (authBarEl) authBarEl.classList.remove('mobile-active');
+        if (hamburgerBtnEl) hamburgerBtnEl.innerHTML = '<i class="fa-solid fa-bars"></i>';
+    }
+
     document.querySelectorAll('.tab-view').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
 
@@ -1553,6 +1563,27 @@ async function loadAgents() {
 
 // Initial Load - Check Auth & Restore Active Tab on Refresh
 window.addEventListener('DOMContentLoaded', async () => {
+    // Setup Hamburger Navigation Toggle for Mobile Viewports
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const navLinks = document.getElementById('main-nav-links');
+    const authBar = document.getElementById('user-auth-bar');
+    if (hamburgerBtn && navLinks) {
+        hamburgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = navLinks.classList.toggle('mobile-active');
+            if (authBar) authBar.classList.toggle('mobile-active', isOpen);
+            hamburgerBtn.innerHTML = isOpen ? '<i class="fa-solid fa-xmark"></i>' : '<i class="fa-solid fa-bars"></i>';
+        });
+
+        document.addEventListener('click', (e) => {
+            if (navLinks.classList.contains('mobile-active') && !navLinks.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+                navLinks.classList.remove('mobile-active');
+                if (authBar) authBar.classList.remove('mobile-active');
+                hamburgerBtn.innerHTML = '<i class="fa-solid fa-bars"></i>';
+            }
+        });
+    }
+
     const hasUser = await fetchCurrentUser();
     const defaultTab = currentUser && currentUser.role === 'SUPER_ADMIN' ? 'platform-overview' : 'agents';
     const savedTab = location.hash.replace('#', '') || localStorage.getItem('activeTab') || defaultTab;
