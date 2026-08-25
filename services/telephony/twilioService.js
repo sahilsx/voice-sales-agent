@@ -71,15 +71,30 @@ export async function placeOutboundCall({ from, to, url, statusCallback }) {
     console.log(`📍 [STEP 1] Twilio Outbound Call Triggered -> To: ${to}`);
     console.log(`   [STEP 1] Twilio Webhook URL: ${url}`);
 
-    const call = await twilioClient.calls.create({
+    const callPayload = {
         from: from || env.TWILIO_PHONE_NUMBER,
         to,
         url,
         statusCallback,
-        statusCallbackEvent: ['completed', 'failed', 'no-answer', 'busy', 'canceled'],
-        machineDetection: 'Enable',
-        machineDetectionTimeout: 6
-    });
+        statusCallbackEvent: ['completed', 'failed', 'no-answer', 'busy', 'canceled']
+    };
 
-    return call;
+    if (env.ENABLE_TWILIO_AMD) {
+        callPayload.machineDetection = 'Enable';
+        callPayload.machineDetectionTimeout = 6;
+    }
+
+    try {
+        const call = await twilioClient.calls.create(callPayload);
+        return call;
+    } catch (err) {
+        // Fallback for Twilio Trial accounts or parameter restrictions
+        if (callPayload.machineDetection && (err.message?.includes('trial accounts') || err.code === 21622)) {
+            console.warn('⚠️ [Twilio AMD Warning] Account is a Trial account or AMD parameter is disallowed. Retrying call without AMD...');
+            delete callPayload.machineDetection;
+            delete callPayload.machineDetectionTimeout;
+            return await twilioClient.calls.create(callPayload);
+        }
+        throw err;
+    }
 }

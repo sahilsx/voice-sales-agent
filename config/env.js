@@ -36,7 +36,10 @@ const envSchema = z.object({
     USE_PIPECAT_FOR_CALLS: z.string().optional().transform(val => val === 'true'),
 
     // Production Custom Public URL (skips Ngrok when set)
-    PUBLIC_TUNNEL_URL: z.string().optional()
+    PUBLIC_TUNNEL_URL: z.string().optional(),
+
+    // Twilio Answering Machine Detection (AMD) - requires paid Twilio account
+    ENABLE_TWILIO_AMD: z.string().optional().transform(val => val === 'true')
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
