@@ -229,6 +229,8 @@ export async function handleCustomerRespond(req, res) {
         if (userSpeech) {
             session.history.push({ role: 'user', content: userSpeech });
             aiSpeech = await queryLLM(session.history);
+            // Sanitize synthetic bracket tags like [INFORMATION REQUIRED] or [STAGE 1]
+            aiSpeech = (aiSpeech || '').replace(/\[(?!END_CALL\])[^\]]*\]/gi, '').replace(/\s+/g, ' ').trim();
             session.history.push({ role: 'assistant', content: aiSpeech });
         } else {
             aiSpeech = "I'm sorry, I couldn't hear you clearly. Could you please say that again?";
