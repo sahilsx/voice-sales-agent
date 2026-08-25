@@ -21,8 +21,11 @@ export function buildGatherTwiml({ respondUrl, sayText, audioUrl, goodbyeText })
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Gather input="speech" action="${escapeXml(respondUrl)}" method="POST" timeout="4" speechTimeout="1.2" speechModel="phone_call" hints="Sahil, demo, menu, mobile, website, reservations, Instagram, schedule, yes, no, thanks, bye, 10 AM, 2 PM" language="en-US">
+    <Gather input="speech" action="${escapeXml(respondUrl)}" method="POST" timeout="8" speechTimeout="auto" speechModel="phone_call" hints="Sahil, demo, menu, mobile, website, reservations, Instagram, schedule, yes, no, thanks, bye, 10 AM, 2 PM" language="en-US">
         ${sayOrPlay}
+    </Gather>
+    <Gather input="speech" action="${escapeXml(respondUrl)}" method="POST" timeout="6" speechTimeout="auto" speechModel="phone_call" language="en-US">
+        <Say voice="Polly.Joanna">Are you still there?</Say>
     </Gather>
     <Say voice="Polly.Joanna">${escapeXml(goodbyeText || 'Thank you for your time. Goodbye.')}</Say>
     <Hangup/>
