@@ -35,6 +35,29 @@ export function getSmartFallbackForTurn(history = []) {
     return 'Got it! What is the main feature or detail you are looking for in your property?';
 }
 
+export function ensureCompleteSentence(text = '') {
+    if (!text) return '';
+    let trimmed = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').replace(/\[(?!END_CALL\])[^\]]*\]/gi, '').trim();
+
+    // End tag [END_CALL] protection
+    const hasEndCall = /\[END_CALL\]/i.test(trimmed);
+    trimmed = trimmed.replace(/\s*\[END_CALL\]/i, '');
+
+    if (/[.!?]$/.test(trimmed)) {
+        return hasEndCall ? `${trimmed} [END_CALL]` : trimmed;
+    }
+
+    // Find the last complete sentence ending in . ! ?
+    const lastPunct = Math.max(trimmed.lastIndexOf('.'), trimmed.lastIndexOf('!'), trimmed.lastIndexOf('?'));
+    if (lastPunct > 5) {
+        const cleanPunct = trimmed.substring(0, lastPunct + 1).trim();
+        return hasEndCall ? `${cleanPunct} [END_CALL]` : cleanPunct;
+    }
+
+    // If no punctuation found, append a period
+    return hasEndCall ? `${trimmed}. [END_CALL]` : `${trimmed}.`;
+}
+
 export function sanitizeAndExpandReply(reply, history = []) {
     if (!reply || reply.length < 3) {
         return getSmartFallbackForTurn(history);
@@ -48,7 +71,9 @@ export function sanitizeAndExpandReply(reply, history = []) {
         const strippedFallback = fallback.replace(/^(got it|understood|sure|okay|right)\s*!?,?\s*/i, '');
         return `${clean}! ${strippedFallback}`;
     }
-    return clean;
+
+    // Ensure sentence is never cut off mid-thought
+    return ensureCompleteSentence(clean);
 }
 
 function extractCleanReply(data) {
@@ -133,7 +158,7 @@ async function queryOllamaRaw(messages) {
                 model: 'llama3.2',
                 messages: pruned,
                 options: {
-                    num_predict: 25,
+                    num_predict: 45,
                     temperature: 0.3,
                     num_thread: 8
                 },
