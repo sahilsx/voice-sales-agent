@@ -19,7 +19,7 @@ async function queryGroqRaw(messages) {
     const recentHistory = messages.slice(1).slice(-8);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const modelsToTry = ['allam-2-7b', 'openai/gpt-oss-120b', 'groq/compound-mini', 'qwen/qwen3.6-27b'];
+    const modelsToTry = ['groq/compound-mini', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
     for (const model of modelsToTry) {
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
