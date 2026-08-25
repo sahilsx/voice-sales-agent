@@ -1,8 +1,8 @@
 import { env } from '../../config/env.js';
+import { extractCustomerFacts, determineConversationStage } from './conversationMemory.js';
 
-const OLLAMA_TIMEOUT_MS = 8000;
-const GROQ_TIMEOUT_MS = 5000;
-const FALLBACK_RESPONSE = "I'm sorry, I didn't quite catch that. Could you say that again?";
+const OLLAMA_TIMEOUT_MS = 2500;
+const GROQ_TIMEOUT_MS = 3500;
 
 function withTimeout(promise, ms, label = 'operation') {
     let timer;
@@ -12,6 +12,45 @@ function withTimeout(promise, ms, label = 'operation') {
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+export function getSmartFallbackForTurn(history = []) {
+    const facts = extractCustomerFacts(history);
+    const stage = determineConversationStage(history, facts);
+    const lastUserMsg = (history.filter(m => m.role === 'user').pop()?.content || '').toLowerCase();
+
+    if (/investment|self use|own use|home/i.test(lastUserMsg)) {
+        return 'Got it! What budget range are you considering for this investment?';
+    }
+    if (/day|days|week|month|soon|now|urgent|4 days|3 days/i.test(lastUserMsg)) {
+        return 'Understood! Would you like to schedule a quick site visit before making your decision?';
+    }
+    if (/price|cost|how much|budget|pricing|rate/i.test(lastUserMsg)) {
+        return 'Our units are priced very competitively. Would you like me to text you the detailed pricing breakdown?';
+    }
+    if (/karanagar|downtown|2bhk|3bhk|location/i.test(lastUserMsg)) {
+        return 'We have prime 2BHK listings available right now. When would be a good time to view them?';
+    }
+    if (stage === 'CLOSING' || stage === 'CALLBACK_OR_TEXT_REQUESTED') {
+        return 'Great! I will text you all the details right away so you can review them. Have a great day! [END_CALL]';
+    }
+    return 'Got it! What is the main feature or detail you are looking for in your property?';
+}
+
+export function sanitizeAndExpandReply(reply, history = []) {
+    if (!reply || reply.length < 3) {
+        return getSmartFallbackForTurn(history);
+    }
+    const clean = reply.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').replace(/\[(?!END_CALL\])[^\]]*\]/gi, '').replace(/\s+/g, ' ').trim();
+    const wordCount = clean.split(/\s+/).length;
+
+    // Single-word responses like "Understood" leave customer hanging — expand them naturally
+    if (wordCount <= 2 && !/\[END_CALL\]/i.test(clean)) {
+        const fallback = getSmartFallbackForTurn(history);
+        const strippedFallback = fallback.replace(/^(got it|understood|sure|okay|right)\s*!?,?\s*/i, '');
+        return `${clean}! ${strippedFallback}`;
+    }
+    return clean;
+}
+
 function extractCleanReply(data) {
     const msg = data.choices?.[0]?.message;
     if (!msg) return '';
@@ -19,17 +58,14 @@ function extractCleanReply(data) {
     let content = msg.content || '';
     content = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
 
-    // Must be a valid conversational turn (not empty, not just a system tag)
     if (content && content.length > 3 && !/^(\[.*?\]|\W+)$/.test(content)) {
         return content;
     }
 
-    // For reasoner models, only extract if explicitly marked as output/response
     if (msg.reasoning) {
         const outputMatch = msg.reasoning.match(/(?:respond|answer|say|output|phrase|reply)\s*:\s*\"([^\"]{5,120})\"/i);
         if (outputMatch && outputMatch[1]) {
             const quote = outputMatch[1].trim();
-            // Filter out system rule keywords
             if (!/^(interested|how much|send me details|sounds good|yes|ok|okay)$/i.test(quote)) {
                 return quote;
             }
@@ -42,7 +78,6 @@ async function queryGroqRaw(messages) {
     if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
     const start = Date.now();
     const systemPrompt = messages[0];
-    // Keep last 4 turns to keep payload under 350 tokens (85% token reduction)
     const recentHistory = messages.slice(1).slice(-4);
     const pruned = [systemPrompt, ...recentHistory];
 
@@ -65,8 +100,9 @@ async function queryGroqRaw(messages) {
 
             if (response.ok) {
                 const data = await response.json();
-                const reply = extractCleanReply(data);
-                if (reply) {
+                const rawReply = extractCleanReply(data);
+                if (rawReply) {
+                    const reply = sanitizeAndExpandReply(rawReply, messages);
                     console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
                     return reply;
                 }
@@ -89,55 +125,52 @@ async function queryOllamaRaw(messages) {
     const recentHistory = messages.slice(1).slice(-4);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const response = await fetch(env.OLLAMA_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            model: 'llama3.2',
-            messages: pruned,
-            options: {
-                num_predict: 25,
-                temperature: 0.3,
-                num_thread: 8
-            },
-            stream: false
-        })
-    });
+    const ollamaPromise = (async () => {
+        const response = await fetch(env.OLLAMA_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama3.2',
+                messages: pruned,
+                options: {
+                    num_predict: 25,
+                    temperature: 0.3,
+                    num_thread: 8
+                },
+                stream: false
+            })
+        });
 
-    if (!response.ok) {
-        throw new Error(`Ollama HTTP error ${response.status}`);
-    }
+        if (!response.ok) {
+            throw new Error(`Ollama HTTP error ${response.status}`);
+        }
 
-    const data = await response.json();
-    let reply = data.message?.content?.trim() || '';
-    reply = reply.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+        const data = await response.json();
+        let rawReply = data.message?.content?.trim() || '';
+        if (!rawReply) {
+            throw new Error('Empty response from Ollama');
+        }
 
-    if (!reply) {
-        throw new Error('Empty response from Ollama');
-    }
+        const reply = sanitizeAndExpandReply(rawReply, messages);
+        console.log(`   [Ollama AI] Latency: ${Date.now() - start}ms -> "${reply}"`);
+        return reply;
+    })();
 
-    console.log(`   [Ollama AI] Latency: ${Date.now() - start}ms -> "${reply}"`);
-    return reply;
+    return await withTimeout(ollamaPromise, OLLAMA_TIMEOUT_MS, 'Ollama Local');
 }
 
 export async function queryLLM(messages) {
-    if (env.GROQ_API_KEY) {
+    try {
+        return await withTimeout(queryGroqRaw(messages), GROQ_TIMEOUT_MS, 'Groq API');
+    } catch (err) {
+        console.warn(`   [Groq Warning]: ${err.message} -> Falling back to Ollama...`);
         try {
-            const groqReply = await withTimeout(queryGroqRaw(messages), GROQ_TIMEOUT_MS, 'Groq API');
-            if (groqReply) return groqReply;
-        } catch (err) {
-            console.warn(`   [Groq Warning]: ${err.message} -> Falling back to Ollama...`);
+            return await queryOllamaRaw(messages);
+        } catch (ollamaErr) {
+            console.warn(`   [Ollama Fallback]: ${ollamaErr.message} -> Using Smart Response Engine`);
+            return getSmartFallbackForTurn(messages);
         }
     }
-
-    try {
-        const ollamaReply = await withTimeout(queryOllamaRaw(messages), OLLAMA_TIMEOUT_MS, 'Ollama Local');
-        if (ollamaReply) return ollamaReply;
-    } catch (err) {
-        console.error(`   [Ollama Error]: ${err.message} -> Returning safe fallback line.`);
-    }
-
-    return FALLBACK_RESPONSE;
 }
 
 export async function warmUpOllama() {
