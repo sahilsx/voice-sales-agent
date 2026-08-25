@@ -26,18 +26,18 @@ export const structuredAiOutputSchema = z.object({
 const DNC_PHRASES = [
     "don't call me",
     "dont call me",
-    "stop calling",
-    "remove me",
+    "stop calling me",        // Specific: stop calling ME (not 'stop calling at 7pm')
+    "stop all calls",
+    "remove me from your list",
     "take me off your list",
     "no more calls",
     "do not contact me",
+    "do not call me again",
     "unsubscribe",
     "never call again",
-    "i am not interested",
-    "i am not interested in this project",
-    "i am not interested in this service",
-    "not interested",
     "dont call me again"
+    // NOTE: 'not interested' intentionally removed from DNC — it triggers analyzeCallQualification
+    // NOT_INTERESTED qualification instead, without permanently blacklisting the lead
 ];
 
 export function detectDoNotCall(history = []) {
@@ -49,17 +49,19 @@ export function detectDoNotCall(history = []) {
     return DNC_PHRASES.some(phrase => fullText.includes(phrase));
 }
 
+// Only use explicit, unambiguous call-closing phrases that the AI will generate
+// after an [END_CALL] signal. Avoid common conversational phrases like
+// 'have a great day' or 'thanks' that can appear mid-conversation.
 const CALL_END_PHRASES = [
     "[end_call]",
     "goodbye",
-    "have a great day",
-    "have a good day",
-    "have a good one",
-    "have a great rest of your day",
-    "talk to you soon",
-    "thanks for your time",
     "take care, bye",
-    "bye for now"
+    "bye for now",
+    "talk to you soon, bye",
+    "take care and goodbye",
+    "have a great day, goodbye",
+    "have a good day, goodbye",
+    "have a great rest of your day"
 ];
 
 export function detectCallEnd(aiSpeech = '', history = [], isDnc = false) {
@@ -112,11 +114,18 @@ export function calculateLeadScore(data = {}) {
 }
 
 const INTERESTED_PHRASES = [
-    "yes", "yeah", "yep", "sure", "interested", "sounds good", "sounds great",
-    "tell me more", "how much", "price", "pricing", "cost", "demo", "book",
-    "schedule", "send details", "send me", "email me",
-    "let's do it", "lets do it", "okay", "ok", "agreed", "sign me up",
-    "definitely", "absolutely", "perfect", "deal"
+    // Explicit interest / intent signals only — do NOT include common one-word acknowledgements
+    // that match any speech ('yes', 'ok', 'sure', 'okay' — too generic for sales qualification)
+    "interested",
+    "sounds good", "sounds great", "sounds interesting",
+    "tell me more", "how much", "price", "pricing", "cost",
+    "demo", "book a demo", "schedule a demo",
+    "schedule", "book",
+    "send details", "send me", "email me", "send me details",
+    "let's do it", "lets do it", "agreed", "sign me up",
+    "definitely", "absolutely", "perfect", "deal",
+    "i would like to", "i want to", "i'd like to",
+    "sign up", "get started", "move forward", "proceed"
 ];
 
 const NOT_INTERESTED_PHRASES = [
@@ -185,7 +194,7 @@ export function analyzeCallQualification(history = []) {
         return { qualification: QUALIFICATIONS.FOLLOW_UP, leadScore: 55, isDnc: false };
     }
 
-    if (positiveCount > 0 || userMessages.length >= 3) {
+    if (positiveCount > 0) {
         const leadScore = Math.min(100, 70 + (positiveCount * 10));
         return { qualification: QUALIFICATIONS.INTERESTED, leadScore, isDnc: false };
     }

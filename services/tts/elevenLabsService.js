@@ -2,7 +2,7 @@ import { env } from '../../config/env.js';
 
 const audioBufferStore = new Map();
 const MAX_STORE_BYTES = 100 * 1024 * 1024; // 100MB RAM Limit
-const TTL_MS = 30000; // 30s TTL
+const TTL_MS = 90000; // 90s TTL — safely covers Twilio network latency before playback
 
 function getStoreSizeBytes() {
     let total = 0;
@@ -30,7 +30,8 @@ export async function speakWithElevenLabs(text, publicTunnelUrl, voiceIdOverride
                 text,
                 model_id: 'eleven_turbo_v2_5',
                 voice_settings: { stability: 0.3, similarity_boost: 0.75 }
-            })
+            }),
+            signal: AbortSignal.timeout(8000)
         });
 
         if (!resp.ok) {

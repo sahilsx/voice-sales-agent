@@ -76,7 +76,9 @@ export async function placeOutboundCall({ from, to, url, statusCallback }) {
         to,
         url,
         statusCallback,
-        statusCallbackEvent: ['completed', 'failed', 'no-answer', 'busy', 'canceled']
+        statusCallbackEvent: ['completed', 'failed', 'no-answer', 'busy', 'canceled'],
+        machineDetection: 'Enable',
+        machineDetectionTimeout: 6
     });
 
     return call;

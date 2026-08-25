@@ -31,6 +31,7 @@ export const QUALIFICATIONS = {
     INTERESTED: 'Interested',
     NOT_INTERESTED: 'Not Interested',
     FOLLOW_UP: 'Follow Up Needed',
+    DO_NOT_CALL: 'Do Not Call',
     UNKNOWN: 'Unknown'
 };
 

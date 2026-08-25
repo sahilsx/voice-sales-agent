@@ -112,6 +112,7 @@ export async function startCampaign(req, res, next) {
             organizationId: orgId,
             agent_id: validated.agent_id,
             doNotCall: false,
+            status: CALL_STATUSES.INITIATED,
             qualification: { $ne: QUALIFICATIONS.DO_NOT_CALL }
         }).lean();
 
@@ -119,6 +120,7 @@ export async function startCampaign(req, res, next) {
             pendingLeads = await Lead.find({
                 agent_id: validated.agent_id,
                 doNotCall: false,
+                status: CALL_STATUSES.INITIATED,
                 qualification: { $ne: QUALIFICATIONS.DO_NOT_CALL }
             }).lean();
         }

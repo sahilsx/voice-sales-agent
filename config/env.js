@@ -9,7 +9,7 @@ const envSchema = z.object({
 
     MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
 
-    JWT_SECRET: z.string().default('voiceai_enterprise_super_secret_jwt_key_2026!'),
+    JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
 
     SUPER_ADMIN_EMAIL: z.string().email().default('superadmin@voiceai.com'),
     SUPER_ADMIN_PASSWORD: z.string().default('SuperAdmin@123456'),

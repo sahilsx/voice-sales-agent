@@ -1,8 +1,8 @@
 import { env } from '../../config/env.js';
 
 const OLLAMA_TIMEOUT_MS = 8000;
-const GROQ_TIMEOUT_MS = 4000;
-const FALLBACK_RESPONSE = "Sounds good. Is there anything specific you'd like to check out on our mobile menu site?";
+const GROQ_TIMEOUT_MS = 5000;
+const FALLBACK_RESPONSE = "I'm sorry, I didn't quite catch that. Could you say that again?";
 
 function withTimeout(promise, ms, label = 'operation') {
     let timer;
@@ -19,7 +19,7 @@ async function queryGroqRaw(messages) {
     const recentHistory = messages.slice(1).slice(-8);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const modelsToTry = ['groq/compound-mini', 'groq/compound', 'openai/gpt-oss-120b'];
+    const modelsToTry = ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'mixtral-8x7b-32768'];
     for (const model of modelsToTry) {
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { connectDB, disconnectDB } from '../config/db.js';
@@ -32,10 +32,17 @@ describe('Super Admin & Multi-Tenant Security Suite', () => {
         await connectDB();
         await seedDefaultOrgAndAdmin();
 
+        // Pre-cleanup stale test users from any previous run to prevent duplicate key errors
+        await User.deleteMany({ id: { $in: ['user_test_mgr', 'user_test_agent', 'user_test_viewer'] } });
+        // Pre-cleanup stale Raybit test org and its users/data from any previous run
+        await User.deleteMany({ email: { $in: ['admin@raybittest.com', 'user2@raybittest.com', 'user3@raybittest.com'] } });
+        const { default: Organization } = await import('../models/Organization.js');
+        await Organization.deleteMany({ email: 'admin@raybittest.com' });
+
         // Login Super Admin
         const saRes = await request(app)
             .post('/api/auth/login')
-            .send({ email: 'superadmin@voiceai.com', password: 'SuperAdmin@123456' });
+            .send({ email: 'superadmin@voiceai.com', password: process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@123456' });
         expect(saRes.status).toBe(200);
         superAdminToken = saRes.body.data.token;
 
@@ -91,7 +98,7 @@ describe('Super Admin & Multi-Tenant Security Suite', () => {
     it('1. Super Admin login returns valid token and role', async () => {
         const res = await request(app)
             .post('/api/auth/login')
-            .send({ email: 'superadmin@voiceai.com', password: 'SuperAdmin@123456' });
+            .send({ email: 'superadmin@voiceai.com', password: process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@123456' });
 
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
@@ -270,5 +277,11 @@ describe('Super Admin & Multi-Tenant Security Suite', () => {
             expect(u.passwordHash).toBeUndefined();
             expect(u.password).toBeUndefined();
         });
+    });
+
+    // Cleanup test-only users created in beforeAll to prevent duplicate key errors on re-runs
+    afterAll(async () => {
+        await User.deleteMany({ id: { $in: ['user_test_mgr', 'user_test_agent', 'user_test_viewer'] } });
+        await disconnectDB();
     });
 });

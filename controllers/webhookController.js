@@ -14,6 +14,21 @@ import { env } from '../config/env.js';
 const activeSessions = new Map();
 const processedEvents = new Set();
 
+// Session TTL: auto-delete sessions that have been IDLE for 10+ minutes
+// Uses lastActivity (updated on each /respond turn) NOT startTime
+// This prevents active long calls from being garbage collected
+const SESSION_IDLE_MAX_MS = 10 * 60 * 1000; // 10 minutes idle
+setInterval(() => {
+    const now = Date.now();
+    for (const [sid, sess] of activeSessions) {
+        const lastActivity = sess.lastActivity || sess.startTime || 0;
+        if ((now - lastActivity) > SESSION_IDLE_MAX_MS) {
+            console.warn(`⚠️ [Session TTL] Cleaning idle session for CallSid: ${sid} (idle ${Math.round((now - lastActivity) / 60000)}min)`);
+            activeSessions.delete(sid);
+        }
+    }
+}, 60000); // Check every minute
+
 export async function handleVoiceConnect(req, res) {
     try {
         const callSid = req.body.CallSid || `CA_${Date.now()}`;
@@ -29,6 +44,13 @@ export async function handleVoiceConnect(req, res) {
         }
         processedEvents.add(`voice_${callSid}`);
         setTimeout(() => processedEvents.delete(`voice_${callSid}`), 60000);
+
+        // Hang up immediately if Twilio's AMD detects voicemail / answering machine
+        const answeredBy = req.body.AnsweredBy;
+        if (answeredBy && (answeredBy === 'machine_start' || answeredBy === 'fax')) {
+            console.log(`📵 [AMD] Voicemail detected (AnsweredBy: ${answeredBy}) for CallSid: ${callSid} — hanging up.`);
+            return res.type('text/xml').status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+        }
 
         let agent = await Agent.findOne({ id: agentId, organizationId }).lean();
         if (!agent) {
@@ -96,6 +118,7 @@ export async function handleVoiceConnect(req, res) {
             // transcript only includes THIS call, not injected prior turns.
             callStartIndex: history.length,
             startTime: Date.now(),
+            lastActivity: Date.now(),
             totalTtsChars: 0,
             totalLlmLatency: 0,
             totalTtsLatency: 0
@@ -168,19 +191,37 @@ export async function handleCustomerRespond(req, res) {
         const callSid = req.body.CallSid || `CA_${Date.now()}`;
         const userSpeech = req.body.SpeechResult;
 
+        // Build dedup key using current session turn count — NOT speech text
+        // This correctly deduplicates Twilio retries (same callSid + same turn count)
+        // while allowing legitimate repeated short phrases ('yes', 'ok') on different turns
+        const existingSession = activeSessions.get(callSid);
+        const currentTurn = existingSession ? existingSession.history.length : 0;
+        const respondKey = `respond_${callSid}_turn${currentTurn}`;
+
+        // Deduplicate Twilio retries on /respond — prevents double AI responses
+        if (processedEvents.has(respondKey)) {
+            console.log(`ℹ️ [Twilio Webhook] Duplicate /respond event for CallSid: ${callSid} (turn ${currentTurn}) — skipping.`);
+            return res.type('text/xml').status(200).send('<?' + 'xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        }
+        processedEvents.add(respondKey);
+        setTimeout(() => processedEvents.delete(respondKey), 30000);
+
         console.log(`\n[Customer Spoke] CallSid: ${callSid} -> "${userSpeech}"`);
 
         const session = activeSessions.get(callSid) || {
             history: [{ role: 'system', content: 'You are a sales representative.' }],
             agent: { voice_id: 'JBFqnCBsd6RMkjVDRZzb', name: 'Alex' },
             lead: { lead_name: 'Customer', id: null },
-            organizationId: 'org_master',
+            organizationId: req.query.org_id || 'org_master',
+            callStartIndex: 1,
             startTime: Date.now(),
             totalTtsChars: 0,
             totalLlmLatency: 0,
             totalTtsLatency: 0
         };
         activeSessions.set(callSid, session);
+        // Refresh last-activity so idle TTL cleanup doesn't touch active calls
+        session.lastActivity = Date.now();
 
         let aiSpeech = '';
         const llmStart = Date.now();
@@ -370,8 +411,7 @@ export async function handleStatusCallback(req, res) {
             }).sort({ createdAt: -1 }); // Most recent campaign for this agent
 
             if (campaign) {
-                // Build the counter update: decrement calling, increment completed/failed
-                // Also increment interested or dnc counters properly
+                // Build counter update: decrement calling (floored at 0), increment completed/failed
                 const counterUpdate = { $inc: { calling: -1 } };
                 if (isCompleted) {
                     counterUpdate.$inc.completed = 1;
@@ -385,6 +425,12 @@ export async function handleStatusCallback(req, res) {
                 }
 
                 await Campaign.updateOne({ _id: campaign._id }, counterUpdate);
+
+                // Floor calling counter at 0 to prevent race-condition negatives
+                await Campaign.updateOne(
+                    { _id: campaign._id, calling: { $lt: 0 } },
+                    { $set: { calling: 0 } }
+                );
 
                 // Reload and check if all leads are done (pending=0 AND calling<=0)
                 const refreshed = await Campaign.findOne({ _id: campaign._id }).lean();
