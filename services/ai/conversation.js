@@ -12,6 +12,28 @@ function withTimeout(promise, ms, label = 'operation') {
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+function extractCleanReply(data) {
+    const msg = data.choices?.[0]?.message;
+    if (!msg) return '';
+
+    let content = msg.content || '';
+    content = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+
+    if (content && content.length > 3) return content;
+
+    // Reasoner models (gpt-oss-120b) put output inside reasoning text
+    if (msg.reasoning) {
+        const matches = msg.reasoning.match(/"([^"]{5,150})"/g);
+        if (matches && matches.length > 0) {
+            const lastQuote = matches[matches.length - 1].replace(/^"|"$/g, '').trim();
+            if (lastQuote && lastQuote.length > 3 && !/^\s*(so|respond|answer|say)\s*$/i.test(lastQuote)) {
+                return lastQuote;
+            }
+        }
+    }
+    return '';
+}
+
 async function queryGroqRaw(messages) {
     if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
     const start = Date.now();
@@ -19,7 +41,7 @@ async function queryGroqRaw(messages) {
     const recentHistory = messages.slice(1).slice(-8);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const modelsToTry = ['allam-2-7b', 'openai/gpt-oss-120b', 'groq/compound-mini', 'qwen/qwen3.6-27b'];
+    const modelsToTry = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'groq/compound-mini'];
     for (const model of modelsToTry) {
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
@@ -32,16 +54,14 @@ async function queryGroqRaw(messages) {
                     body: JSON.stringify({
                         model: model,
                         messages: pruned,
-                        max_tokens: 60,
-                        temperature: 0.6
+                        max_tokens: 150,
+                        temperature: 0.3
                     })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    let reply = data.choices?.[0]?.message?.content?.trim() || '';
-                    // Clean both closed and unclosed <think> reasoning blocks
-                    reply = reply.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+                    const reply = extractCleanReply(data);
                     if (reply) {
                         console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
                         return reply;
