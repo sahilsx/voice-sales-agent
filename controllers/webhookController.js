@@ -338,6 +338,15 @@ export async function handleStatusCallback(req, res) {
         const callStatus = req.body.CallStatus; // 'completed', 'no-answer', 'busy', 'failed', 'canceled'
         console.log(`\n[Call Ended Event] CallSid: ${callSid} | Status: ${callStatus}`);
 
+        if (callSid && processedEvents.has(`status_${callSid}`)) {
+            console.log(`ℹ️ [Twilio Webhook] Duplicate /status event for CallSid: ${callSid} — skipping.`);
+            return res.status(200).send('ok');
+        }
+        if (callSid) {
+            processedEvents.add(`status_${callSid}`);
+            setTimeout(() => processedEvents.delete(`status_${callSid}`), 60000);
+        }
+
         const session = activeSessions.get(callSid);
         let organizationId = session?.organizationId;
 
