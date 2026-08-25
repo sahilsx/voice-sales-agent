@@ -3,8 +3,9 @@ import Lead from '../models/Lead.js';
 import CallLog from '../models/CallLog.js';
 import Campaign from '../models/Campaign.js';
 import { buildSystemPrompt, buildFollowUpSystemPrompt } from '../services/ai/promptBuilder.js';
+import { extractCustomerFacts, determineConversationStage, formatMemoryForPrompt } from '../services/ai/conversationMemory.js';
 import { queryLLM } from '../services/ai/conversation.js';
-import { detectDoNotCall, detectCallEnd, parseStructuredAiOutput, calculateLeadScore, analyzeCallQualification } from '../services/ai/qualification.js';
+import { detectDoNotCall, detectCustomerCallbackExit, detectCallEnd, parseStructuredAiOutput, calculateLeadScore, analyzeCallQualification } from '../services/ai/qualification.js';
 import { buildGatherTwiml, buildGoodbyeTwiml, buildErrorTwiml, buildMediaStreamTwiml } from '../services/telephony/twilioService.js';
 import { speakWithElevenLabs } from '../services/tts/elevenLabsService.js';
 import { CALL_STATUSES, QUALIFICATIONS, COST_RATES, CAMPAIGN_STATUSES } from '../config/constants.js';
@@ -223,9 +224,31 @@ export async function handleCustomerRespond(req, res) {
 
         if (userSpeech) {
             session.history.push({ role: 'user', content: userSpeech });
-            aiSpeech = await queryLLM(session.history);
-            // Sanitize synthetic bracket tags like [INFORMATION REQUIRED] or [STAGE 1]
-            aiSpeech = (aiSpeech || '').replace(/\[(?!END_CALL\])[^\]]*\]/gi, '').replace(/\s+/g, ' ').trim();
+            if (detectCustomerCallbackExit(userSpeech)) {
+                console.log(`📞 [Customer Callback Exit Detected] CallSid: ${callSid} -> "${userSpeech}"`);
+                aiSpeech = "No problem at all! I'll share all the details right away so you can get back to us whenever convenient. Have a great day! [END_CALL]";
+            } else {
+                // Dynamically extract structured facts and update system prompt with memory
+                const facts = extractCustomerFacts(session.history);
+                const stage = determineConversationStage(session.history, facts);
+                const memoryBlock = formatMemoryForPrompt(facts, stage);
+
+                const updatedSystemPrompt = session.isFollowUp && session.previousCall
+                    ? buildFollowUpSystemPrompt(session.agent, session.lead, session.previousCall, memoryBlock)
+                    : buildSystemPrompt(session.agent, session.lead, memoryBlock);
+                session.history[0] = { role: 'system', content: updatedSystemPrompt };
+
+                aiSpeech = await queryLLM(session.history);
+                // Sanitize synthetic bracket tags like [INFORMATION REQUIRED] or [STAGE 1]
+                aiSpeech = (aiSpeech || '').replace(/\[(?!END_CALL\])[^\]]*\]/gi, '').replace(/\s+/g, ' ').trim();
+
+                // Response validation: detect duplicate assistant response from previous turn
+                const prevAssistantTurn = session.history.filter(m => m.role === 'assistant').pop()?.content || '';
+                if (prevAssistantTurn && aiSpeech && (aiSpeech.toLowerCase() === prevAssistantTurn.toLowerCase() || (aiSpeech.length > 15 && aiSpeech.includes(prevAssistantTurn)))) {
+                    console.warn(`⚠️ [Response Validation Guard] Detected duplicate assistant speech. Replacing with direct pivot.`);
+                    aiSpeech = "Got it! Based on that, what would be the best next step for you?";
+                }
+            }
             session.history.push({ role: 'assistant', content: aiSpeech });
         } else {
             aiSpeech = "I'm sorry, I couldn't hear you clearly. Could you please say that again?";

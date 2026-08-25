@@ -19,15 +19,19 @@ function extractCleanReply(data) {
     let content = msg.content || '';
     content = content.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
 
-    if (content && content.length > 3) return content;
+    // Must be a valid conversational turn (not empty, not just a system tag)
+    if (content && content.length > 3 && !/^(\[.*?\]|\W+)$/.test(content)) {
+        return content;
+    }
 
-    // Reasoner models (gpt-oss-120b) put output inside reasoning text
+    // For reasoner models, only extract if explicitly marked as output/response
     if (msg.reasoning) {
-        const matches = msg.reasoning.match(/"([^"]{5,150})"/g);
-        if (matches && matches.length > 0) {
-            const lastQuote = matches[matches.length - 1].replace(/^"|"$/g, '').trim();
-            if (lastQuote && lastQuote.length > 3 && !/^\s*(so|respond|answer|say)\s*$/i.test(lastQuote)) {
-                return lastQuote;
+        const outputMatch = msg.reasoning.match(/(?:respond|answer|say|output|phrase|reply)\s*:\s*\"([^\"]{5,120})\"/i);
+        if (outputMatch && outputMatch[1]) {
+            const quote = outputMatch[1].trim();
+            // Filter out system rule keywords
+            if (!/^(interested|how much|send me details|sounds good|yes|ok|okay)$/i.test(quote)) {
+                return quote;
             }
         }
     }
@@ -41,9 +45,9 @@ async function queryGroqRaw(messages) {
     const recentHistory = messages.slice(1).slice(-8);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const modelsToTry = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'groq/compound-mini'];
+    const modelsToTry = ['groq/compound-mini', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
     for (const model of modelsToTry) {
-        for (let attempt = 1; attempt <= 2; attempt++) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
             try {
                 const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                     method: 'POST',
@@ -54,8 +58,8 @@ async function queryGroqRaw(messages) {
                     body: JSON.stringify({
                         model: model,
                         messages: pruned,
-                        max_tokens: 150,
-                        temperature: 0.3
+                        max_tokens: 60,
+                        temperature: 0.4
                     })
                 });
 
@@ -67,8 +71,9 @@ async function queryGroqRaw(messages) {
                         return reply;
                     }
                 } else if (response.status === 429) {
-                    console.warn(`   [Groq Notice] Model ${model} rate limited (429). Retrying in 200ms (attempt ${attempt}/2)...`);
-                    await new Promise(r => setTimeout(r, 200));
+                    const backoffMs = attempt * 300;
+                    console.warn(`   [Groq Notice] Model ${model} rate limited (429). Retrying in ${backoffMs}ms (attempt ${attempt}/3)...`);
+                    await new Promise(r => setTimeout(r, backoffMs));
                 } else {
                     console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
                     break;

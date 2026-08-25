@@ -40,6 +40,17 @@ const DNC_PHRASES = [
     // NOT_INTERESTED qualification instead, without permanently blacklisting the lead
 ];
 
+const CUSTOMER_CALLBACK_EXIT_PHRASES = [
+    "call you back", "call back", "i'll get back", "ill get back",
+    "i will get back", "get back to you", "call you later", "talk to you later",
+    "call me back", "call me later", "call back later"
+];
+
+export function detectCustomerCallbackExit(userSpeech = '') {
+    const lower = (userSpeech || '').toLowerCase();
+    return CUSTOMER_CALLBACK_EXIT_PHRASES.some(phrase => lower.includes(phrase));
+}
+
 export function detectDoNotCall(history = []) {
     const fullText = history
         .filter(m => m.role === 'user')
