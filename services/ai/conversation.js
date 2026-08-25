@@ -19,7 +19,7 @@ async function queryGroqRaw(messages) {
     const recentHistory = messages.slice(1).slice(-8);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const modelsToTry = ['groq/compound-mini', 'groq/compound', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.6-27b'];
+    const modelsToTry = ['allam-2-7b', 'openai/gpt-oss-120b', 'groq/compound-mini', 'qwen/qwen3.6-27b'];
     for (const model of modelsToTry) {
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
@@ -32,22 +32,23 @@ async function queryGroqRaw(messages) {
                     body: JSON.stringify({
                         model: model,
                         messages: pruned,
-                        max_tokens: 45,
+                        max_tokens: 60,
                         temperature: 0.6
                     })
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    let reply = data.choices?.[0]?.message?.content?.trim();
+                    let reply = data.choices?.[0]?.message?.content?.trim() || '';
+                    // Clean both closed and unclosed <think> reasoning blocks
+                    reply = reply.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
                     if (reply) {
-                        reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
                         console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
                         return reply;
                     }
                 } else if (response.status === 429) {
-                    console.warn(`   [Groq Notice] Model ${model} rate limited (429). Retrying in 300ms (attempt ${attempt}/2)...`);
-                    await new Promise(r => setTimeout(r, 300));
+                    console.warn(`   [Groq Notice] Model ${model} rate limited (429). Retrying in 200ms (attempt ${attempt}/2)...`);
+                    await new Promise(r => setTimeout(r, 200));
                 } else {
                     console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
                     break;
