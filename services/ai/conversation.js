@@ -42,46 +42,41 @@ async function queryGroqRaw(messages) {
     if (!env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
     const start = Date.now();
     const systemPrompt = messages[0];
-    const recentHistory = messages.slice(1).slice(-8);
+    // Keep last 4 turns to keep payload under 350 tokens (85% token reduction)
+    const recentHistory = messages.slice(1).slice(-4);
     const pruned = [systemPrompt, ...recentHistory];
 
-    const modelsToTry = ['groq/compound-mini', 'openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+    const modelsToTry = ['groq/compound-mini', 'openai/gpt-oss-120b'];
     for (const model of modelsToTry) {
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${env.GROQ_API_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: model,
-                        messages: pruned,
-                        max_tokens: 60,
-                        temperature: 0.4
-                    })
-                });
+        try {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${env.GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: pruned,
+                    max_tokens: 50,
+                    temperature: 0.4
+                })
+            });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    const reply = extractCleanReply(data);
-                    if (reply) {
-                        console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
-                        return reply;
-                    }
-                } else if (response.status === 429) {
-                    const backoffMs = attempt * 300;
-                    console.warn(`   [Groq Notice] Model ${model} rate limited (429). Retrying in ${backoffMs}ms (attempt ${attempt}/3)...`);
-                    await new Promise(r => setTimeout(r, backoffMs));
-                } else {
-                    console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
-                    break;
+            if (response.ok) {
+                const data = await response.json();
+                const reply = extractCleanReply(data);
+                if (reply) {
+                    console.log(`   [Groq AI] Model: ${model} | Latency: ${Date.now() - start}ms -> "${reply}"`);
+                    return reply;
                 }
-            } catch (err) {
-                console.warn(`   [Groq Notice] Model ${model} error: ${err.message}`);
-                break;
+            } else if (response.status === 429) {
+                console.warn(`   [Groq Notice] Model ${model} rate limited / TPD exhausted (429). Falling back to next model...`);
+            } else {
+                console.warn(`   [Groq Notice] Model ${model} status ${response.status}`);
             }
+        } catch (err) {
+            console.warn(`   [Groq Notice] Model ${model} error: ${err.message}`);
         }
     }
 
@@ -91,8 +86,7 @@ async function queryGroqRaw(messages) {
 async function queryOllamaRaw(messages) {
     const start = Date.now();
     const systemPrompt = messages[0];
-    // Keep last 12 turns (was 4) so the AI remembers what the customer already answered
-    const recentHistory = messages.slice(1).slice(-12);
+    const recentHistory = messages.slice(1).slice(-4);
     const pruned = [systemPrompt, ...recentHistory];
 
     const response = await fetch(env.OLLAMA_URL, {
@@ -101,14 +95,27 @@ async function queryOllamaRaw(messages) {
         body: JSON.stringify({
             model: 'llama3.2',
             messages: pruned,
-            options: { num_predict: 50, temperature: 0.7 }, // was 35/0.5
+            options: {
+                num_predict: 25,
+                temperature: 0.3,
+                num_thread: 8
+            },
             stream: false
         })
     });
 
-    if (!response.ok) throw new Error(`Ollama status ${response.status}`);
+    if (!response.ok) {
+        throw new Error(`Ollama HTTP error ${response.status}`);
+    }
+
     const data = await response.json();
-    const reply = data.message?.content?.trim();
+    let reply = data.message?.content?.trim() || '';
+    reply = reply.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+
+    if (!reply) {
+        throw new Error('Empty response from Ollama');
+    }
+
     console.log(`   [Ollama AI] Latency: ${Date.now() - start}ms -> "${reply}"`);
     return reply;
 }
