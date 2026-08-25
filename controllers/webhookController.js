@@ -100,13 +100,8 @@ export async function handleVoiceConnect(req, res) {
 
         const history = [{ role: 'system', content: systemPrompt }];
 
-        // Inject previous conversation turns into the new session history so the AI
-        // treats them as already-said context and never re-asks those questions
-        if (isFollowUp && previousCall && previousCall.transcript.length > 0) {
-            const priorTurns = previousCall.transcript.slice(-20); // Cap at 20 turns
-            history.push(...priorTurns);
-            console.log(`[Follow-Up] Injected ${priorTurns.length} prior turns into session history.`);
-        }
+        // NOTE: Prior call transcript is already formatted into systemPrompt by buildFollowUpSystemPrompt().
+        // Do NOT push raw prior turns into history array to avoid duplicate transcripts and AI confusion.
 
         activeSessions.set(callSid, {
             history,
