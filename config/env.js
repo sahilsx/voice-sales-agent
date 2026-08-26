@@ -24,6 +24,13 @@ const envSchema = z.object({
 
     GROQ_API_KEY: z.string().optional(),
 
+    // LLM Provider Selection & Qwen GPU Settings
+    LLM_PROVIDER: z.enum(['groq', 'qwen', 'auto']).default('groq'),
+    QWEN_ENABLED: z.string().optional().transform(val => val === 'true'),
+    QWEN_BASE_URL: z.string().default('http://127.0.0.1:8000/v1'),
+    QWEN_MODEL: z.string().default('Qwen/Qwen3-4B-Instruct-2507-FP8'),
+    QWEN_TIMEOUT_MS: z.string().default('2000').transform(val => parseInt(val, 10)),
+
     OLLAMA_URL: z.string().default('http://localhost:11434/api/chat'),
 
     REDIS_HOST: z.string().default('127.0.0.1'),

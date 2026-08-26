@@ -1,5 +1,6 @@
 import { env } from '../../config/env.js';
 import { extractCustomerFacts, determineConversationStage } from './conversationMemory.js';
+import { queryQwenRaw } from './providers/qwenProvider.js';
 
 const OLLAMA_TIMEOUT_MS = 2500;
 const GROQ_TIMEOUT_MS = 3500;
@@ -185,6 +186,46 @@ async function queryOllamaRaw(messages) {
 }
 
 export async function queryLLM(messages) {
+    const provider = (env.LLM_PROVIDER || 'groq').toLowerCase();
+
+    if (provider === 'qwen') {
+        try {
+            const raw = await queryQwenRaw(messages);
+            return sanitizeAndExpandReply(raw, messages);
+        } catch (err) {
+            console.warn(`   [Qwen Warning]: ${err.message} -> Falling back to Ollama...`);
+            try {
+                return await queryOllamaRaw(messages);
+            } catch (ollamaErr) {
+                console.warn(`   [Ollama Fallback]: ${ollamaErr.message} -> Using Smart Response Engine`);
+                return getSmartFallbackForTurn(messages);
+            }
+        }
+    }
+
+    if (provider === 'auto') {
+        if (env.QWEN_ENABLED) {
+            try {
+                const raw = await queryQwenRaw(messages);
+                return sanitizeAndExpandReply(raw, messages);
+            } catch (err) {
+                console.warn(`   [Auto Mode] Qwen failed (${err.message}), trying Groq...`);
+            }
+        }
+        try {
+            return await withTimeout(queryGroqRaw(messages), GROQ_TIMEOUT_MS, 'Groq API');
+        } catch (err) {
+            console.warn(`   [Groq Warning]: ${err.message} -> Falling back to Ollama...`);
+            try {
+                return await queryOllamaRaw(messages);
+            } catch (ollamaErr) {
+                console.warn(`   [Ollama Fallback]: ${ollamaErr.message} -> Using Smart Response Engine`);
+                return getSmartFallbackForTurn(messages);
+            }
+        }
+    }
+
+    // Default 'groq' mode — EXACT existing Groq pipeline
     try {
         return await withTimeout(queryGroqRaw(messages), GROQ_TIMEOUT_MS, 'Groq API');
     } catch (err) {
